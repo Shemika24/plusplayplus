@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { SpinWheelState } from '../../types';
 import Modal from '../Modal';
 import { useRewardedAd } from '../../hooks/useRewardedAd';
@@ -265,10 +265,11 @@ const LuckyWheelModal: React.FC<LuckyWheelModalProps> = ({ isOpen, onClose, spin
         showRewardedAd();
     };
 
-    const handleCloseResultModal = () => {
+    // Memoized to prevent reference change on re-renders, which resets the timer in sub-modals
+    const handleCloseResultModal = useCallback(() => {
         setResult(null);
         setIsSpinning(false);
-    };
+    }, []);
 
     const handleOpenInfo = () => {
         playSound(SOUNDS.CLICK, 0.7);

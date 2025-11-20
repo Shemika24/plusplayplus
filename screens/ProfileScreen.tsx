@@ -1,10 +1,14 @@
 
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { UserProfile } from '../types';
+import { UserProfile, NotificationPreferences, PrivacySettings, PaymentDetails } from '../types';
 import { updateUserProfile, deleteUserData } from '../services/firestoreService';
-import { deleteCurrentUser } from '../services/authService';
+import { deleteCurrentUser, changeUserPassword } from '../services/authService';
 import Modal from '../components/Modal';
 import InfoModal from '../components/modals/InfoModal';
+import NotificationSettingsModal from '../components/modals/NotificationSettingsModal';
+import PrivacySettingsModal from '../components/modals/PrivacySettingsModal';
+import PaymentMethodModal from '../components/modals/PaymentMethodModal';
 import { serverTimestamp } from 'firebase/firestore';
 
 // --- Data & Types ---
@@ -59,17 +63,166 @@ const InfoRow: React.FC<{ icon: string; label: string; value: string; isEditable
 };
 
 
-const SettingsRow: React.FC<{ icon: string; label: string; onClick?: () => void; isDestructive?: boolean }> = ({ icon, label, onClick, isDestructive = false }) => (
+const SettingsRow: React.FC<{ icon: string; label: string; onClick?: () => void; isDestructive?: boolean; value?: string | React.ReactNode }> = ({ icon, label, onClick, isDestructive = false, value }) => (
     <button onClick={onClick} className={`w-full flex items-center justify-between py-3.5 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors duration-200 rounded-lg`}>
-        <div className="flex items-center">
-             <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 ${isDestructive ? 'bg-red-50' : 'bg-gray-100'}`}>
+        <div className="flex items-center flex-1 min-w-0">
+             <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${isDestructive ? 'bg-red-50' : 'bg-gray-100'}`}>
                 <i className={`${icon} ${isDestructive ? 'text-red-500' : 'text-[var(--dark)]'}`}></i>
             </div>
-            <p className={`font-semibold ${isDestructive ? 'text-red-600' : 'text-[var(--dark)]'}`}>{label}</p>
+            <div className="text-left flex-1 min-w-0">
+                <p className={`font-semibold ${isDestructive ? 'text-red-600' : 'text-[var(--dark)]'}`}>{label}</p>
+                {value && <div className="text-xs text-[var(--gray)] mt-0.5 truncate">{value}</div>}
+            </div>
         </div>
-        {!isDestructive && <i className="fa-solid fa-chevron-right text-[var(--gray)]"></i>}
+        {!isDestructive && <i className="fa-solid fa-chevron-right text-[var(--gray)] ml-2 flex-shrink-0"></i>}
     </button>
 );
+
+// --- Change Password Modal ---
+const ChangePasswordModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState(false);
+    const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+
+    useEffect(() => {
+        if (isOpen) {
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmPassword('');
+            setError('');
+            setSuccess(false);
+            setLoading(false);
+        }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        
+        if (newPassword !== confirmPassword) {
+            setError("New passwords do not match.");
+            return;
+        }
+        if (newPassword.length < 6) {
+            setError("Password must be at least 6 characters long.");
+            return;
+        }
+        if (currentPassword === newPassword) {
+            setError("New password cannot be the same as the old password.");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await changeUserPassword(currentPassword, newPassword);
+            setSuccess(true);
+            setTimeout(() => {
+                onClose();
+            }, 2000);
+        } catch (err: any) {
+            setError(err.message);
+            setLoading(false);
+        }
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Change Password">
+            {success ? (
+                 <div className="text-center p-6 animate-fadeIn">
+                    <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4 border-4 border-green-200">
+                        <i className="fa-solid fa-check text-green-500 text-3xl"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-[var(--dark)]">Password Updated!</h3>
+                    <p className="text-[var(--gray)] mt-2">Your password has been successfully changed.</p>
+                </div>
+            ) : (
+                <form onSubmit={handleSubmit} className="p-2 space-y-4">
+                    {error && (
+                         <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-start animate-fadeIn">
+                            <i className="fa-solid fa-circle-exclamation mt-0.5 mr-2 flex-shrink-0"></i>
+                            <span>{error}</span>
+                        </div>
+                    )}
+                    
+                    <div>
+                        <label className="block text-xs font-bold text-[var(--gray)] mb-1 uppercase">Current Password</label>
+                        <div className="relative">
+                            <input 
+                                type={showCurrentPassword ? "text" : "password"}
+                                value={currentPassword}
+                                onChange={(e) => setCurrentPassword(e.target.value)}
+                                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none"
+                                placeholder="Enter current password"
+                                required
+                            />
+                             <button
+                                type="button"
+                                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                            >
+                                <i className={`fa-solid ${showCurrentPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-[var(--gray)] mb-1 uppercase">New Password</label>
+                        <div className="relative">
+                             <input 
+                                type={showNewPassword ? "text" : "password"}
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none"
+                                placeholder="Enter new password (min. 6 chars)"
+                                required
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowNewPassword(!showNewPassword)}
+                                className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                            >
+                                <i className={`fa-solid ${showNewPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                            </button>
+                        </div>
+                    </div>
+
+                     <div>
+                        <label className="block text-xs font-bold text-[var(--gray)] mb-1 uppercase">Confirm New Password</label>
+                        <input 
+                            type="password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none"
+                            placeholder="Re-enter new password"
+                            required
+                        />
+                    </div>
+
+                    <div className="pt-2">
+                        <button 
+                            type="submit" 
+                            disabled={loading}
+                            className="w-full bg-[var(--primary)] text-white font-bold py-3 rounded-xl shadow-lg hover:bg-[var(--primary-dark)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {loading ? <><i className="fa-solid fa-spinner fa-spin mr-2"></i>Updating...</> : 'Update Password'}
+                        </button>
+                    </div>
+                </form>
+            )}
+             <style>{`
+                @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+                .animate-fadeIn { animation: fadeIn 0.2s ease-out forwards; }
+            `}</style>
+        </Modal>
+    );
+}
 
 // --- Delete Confirmation Modal ---
 interface DeleteConfirmationModalProps {
@@ -126,7 +279,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ isOpe
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          className="mt-4 w-full p-3 bg-[var(--gray-light)] border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--error)] focus:outline-none transition text-center"
+          className="mt-4 w-full p-3 bg-[var(--gray-light)] border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--error)] focus:outline-none transition text-center"
           placeholder={CONFIRMATION_TEXT}
           disabled={isDeleting}
         />
@@ -174,6 +327,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
     
     const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
     const [settingsModalContent, setSettingsModalContent] = useState<{ title: string; message: string } | null>(null);
+    const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+    const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
+    const [isPaymentMethodModalOpen, setIsPaymentMethodModalOpen] = useState(false);
+    
+    // New state for change password modal
+    const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
 
     const { canEditPhone, timeLeftForPhoneEdit } = useMemo(() => {
         const lastUpdate = userProfile.lastPhoneUpdate?.toDate();
@@ -281,7 +440,36 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
             alert("Could not save changes. Please try again.");
         }
     };
+
+    const handleNotificationSave = async (newPreferences: NotificationPreferences) => {
+        try {
+             await updateUserProfile(userProfile.uid, { notificationPreferences: newPreferences });
+             onProfileUpdate({ notificationPreferences: newPreferences });
+        } catch (error) {
+             console.error("Failed to save notification preferences", error);
+             throw error;
+        }
+    };
     
+    const handlePrivacySave = async (newSettings: PrivacySettings) => {
+        try {
+             await updateUserProfile(userProfile.uid, { privacySettings: newSettings });
+             onProfileUpdate({ privacySettings: newSettings });
+        } catch (error) {
+             console.error("Failed to save privacy settings", error);
+             throw error;
+        }
+    };
+    
+    const handlePaymentMethodSave = async (newMethodsList: PaymentDetails[]) => {
+        try {
+            await updateUserProfile(userProfile.uid, { savedPaymentMethods: newMethodsList });
+            onProfileUpdate({ savedPaymentMethods: newMethodsList });
+        } catch (error) {
+            console.error("Failed to save payment details", error);
+            throw error;
+        }
+    };
 
     const handleCancel = () => {
         setFormData(userProfile);
@@ -297,6 +485,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
     const filteredCountries = countries.filter(c =>
         c.name.toLowerCase().includes(countrySearch.toLowerCase()) || c.code.includes(countrySearch)
     );
+
+    const getPaymentMethodDisplayText = () => {
+        const methods = userProfile.savedPaymentMethods || [];
+        if (methods.length === 0) return 'Not Set';
+        if (methods.length === 1) {
+            const m = methods[0];
+            return `${m.method} ${m.cryptoName ? `(${m.cryptoName})` : ''}`;
+        }
+        return `${methods.length} Methods Linked`;
+    };
 
     return (
         <div className="bg-gray-50 pb-24 min-h-full">
@@ -410,9 +608,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                 {/* Settings */}
                 <div className="bg-white rounded-xl shadow-lg p-4">
                      <h3 className="font-bold text-lg text-[var(--dark)] mb-2 px-1">Settings</h3>
-                     <SettingsRow icon="fa-solid fa-shield-halved" label="Privacy Settings" onClick={() => setSettingsModalContent({ title: 'Privacy Settings', message: 'This feature is coming soon!' })} />
-                     <SettingsRow icon="fa-solid fa-bell" label="Notification Settings" onClick={() => setSettingsModalContent({ title: 'Notification Settings', message: 'This feature is coming soon!' })} />
-                     <SettingsRow icon="fa-solid fa-key" label="Change Password" onClick={() => setSettingsModalContent({ title: 'Change Password', message: 'This feature is coming soon!' })} />
+                     <SettingsRow 
+                         icon="fa-solid fa-credit-card" 
+                         label="Payment Methods" 
+                         value={getPaymentMethodDisplayText()}
+                         onClick={() => setIsPaymentMethodModalOpen(true)} 
+                     />
+                     <SettingsRow icon="fa-solid fa-shield-halved" label="Privacy Settings" onClick={() => setIsPrivacyModalOpen(true)} />
+                     <SettingsRow icon="fa-solid fa-bell" label="Notification Settings" onClick={() => setIsNotificationModalOpen(true)} />
+                     <SettingsRow icon="fa-solid fa-key" label="Change Password" onClick={() => setIsChangePasswordModalOpen(true)} />
                 </div>
                 
                 {/* Account Actions */}
@@ -425,6 +629,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                 onClose={() => setIsDeleteModalOpen(false)}
                 onConfirm={handleDeleteAccount}
             />
+            
+            <ChangePasswordModal 
+                isOpen={isChangePasswordModalOpen}
+                onClose={() => setIsChangePasswordModalOpen(false)}
+            />
+
             <InfoModal
                 isOpen={isInfoModalOpen}
                 onClose={() => setIsInfoModalOpen(false)}
@@ -443,6 +653,27 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                     actions={[{ text: 'OK', onClick: () => setSettingsModalContent(null), primary: true }]}
                 />
             )}
+
+            <NotificationSettingsModal 
+                isOpen={isNotificationModalOpen}
+                onClose={() => setIsNotificationModalOpen(false)}
+                preferences={userProfile.notificationPreferences}
+                onSave={handleNotificationSave}
+            />
+            
+            <PrivacySettingsModal
+                isOpen={isPrivacyModalOpen}
+                onClose={() => setIsPrivacyModalOpen(false)}
+                settings={userProfile.privacySettings}
+                onSave={handlePrivacySave}
+            />
+
+            <PaymentMethodModal 
+                isOpen={isPaymentMethodModalOpen}
+                onClose={() => setIsPaymentMethodModalOpen(false)}
+                currentDetails={userProfile.savedPaymentMethods}
+                onSave={handlePaymentMethodSave}
+            />
         </div>
     );
 };

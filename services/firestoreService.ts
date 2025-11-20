@@ -1,4 +1,8 @@
 
+
+
+
+
 import { UserProfile, TaskHistory, Withdrawal, Task, RankedUser, Notification } from '../types';
 import { 
     doc, 
@@ -18,7 +22,9 @@ import {
     startAfter,
     deleteDoc,
     QueryDocumentSnapshot,
-    DocumentData
+    DocumentData,
+    where,
+    getCountFromServer
 } from "firebase/firestore";
 import { User } from "firebase/auth";
 import { db } from '../firebase';
@@ -112,14 +118,28 @@ const generateDyverzeId = (): string => {
     return `DYZ${randomNum}`;
 };
 
-export const createUserProfileDocument = async (userAuth: User, additionalData: { fullName: string }): Promise<void> => {
+interface CreateProfileOptions {
+    fullName: string;
+    avatarUrl?: string;
+    telegramUsername?: string;
+    telegramId?: number;
+}
+
+export const createUserProfileDocument = async (userAuth: User, additionalData: CreateProfileOptions): Promise<void> => {
     const userDocRef = doc(db, "users", userAuth.uid);
     const userDocSnap = await getDoc(userDocRef);
 
     if (!userDocSnap.exists()) {
         const { email, uid } = userAuth;
-        const { fullName } = additionalData;
-        const username = fullName.split(' ')[0].toLowerCase();
+        const { fullName, avatarUrl, telegramUsername, telegramId } = additionalData;
+        
+        // Use Telegram username if available, otherwise derive from name
+        const username = telegramUsername || fullName.split(' ')[0].toLowerCase();
+        
+        // If we have Telegram ID, use it. Else fallback to UID.
+        const refCode = telegramId || uid;
+        // Use telegram bot link format
+        const referralLink = `https://t.me/plusplayplus_bot?start=${refCode}`;
 
         const newProfile: UserProfile = {
             uid,
@@ -127,14 +147,30 @@ export const createUserProfileDocument = async (userAuth: User, additionalData: 
             fullName,
             username,
             dyverzeId: generateDyverzeId(),
+            telegramId: telegramId,
             points: 0,
-            avatarUrl: "",
+            avatarUrl: avatarUrl || "",
             bio: "",
             dob: "",
             address: "",
             phone: "",
             lastPhoneUpdate: null,
-            referralLink: `https://dyverze.ads/ref/${uid}`,
+            deviceInfo: navigator.userAgent, // Store User Agent
+            notificationPreferences: {
+                withdrawals: true,
+                dailyCheckIn: true,
+                luckyWheel: true,
+                referrals: true,
+                announcements: true
+            },
+            privacySettings: {
+                showInRanking: true,
+                allowPersonalizedAds: true,
+                visibleToReferrals: true,
+                showOnlineStatus: true
+            },
+            savedPaymentMethods: [],
+            referralLink,
             referrals: {
                 count: 0,
                 activeCount: 0,
@@ -203,6 +239,29 @@ export const getUserProfile = async (user: User): Promise<UserProfile | null> =>
             needsUpdate = true;
         }
 
+        // Notification Preferences Migration
+        if (!data.notificationPreferences) {
+            data.notificationPreferences = {
+                withdrawals: true,
+                dailyCheckIn: true,
+                luckyWheel: true,
+                referrals: true,
+                announcements: true
+            };
+            needsUpdate = true;
+        }
+
+        // Privacy Settings Migration
+        if (!data.privacySettings) {
+            data.privacySettings = {
+                showInRanking: true,
+                allowPersonalizedAds: true,
+                visibleToReferrals: true,
+                showOnlineStatus: true
+            };
+            needsUpdate = true;
+        }
+
         // Migration from firstName/lastName to fullName
         if (!data.fullName && (data.firstName || data.lastName)) {
             data.fullName = `${data.firstName || ''} ${data.lastName || ''}`.trim();
@@ -213,6 +272,24 @@ export const getUserProfile = async (user: User): Promise<UserProfile | null> =>
         if (data.lastPhoneUpdate === undefined) {
             data.lastPhoneUpdate = null;
             needsUpdate = true;
+        }
+
+        // Migration for Payment Details (Single Object -> Array)
+        if (!data.savedPaymentMethods) {
+            if (data.paymentDetails) {
+                // Migrate existing single method to array
+                data.savedPaymentMethods = [data.paymentDetails];
+                delete data.paymentDetails; // Optional: clean up old field
+            } else {
+                data.savedPaymentMethods = [];
+            }
+            needsUpdate = true;
+        }
+
+        // Update Device Info if changed
+        if (data.deviceInfo !== navigator.userAgent) {
+             data.deviceInfo = navigator.userAgent;
+             needsUpdate = true;
         }
         
         if (needsUpdate) {
@@ -385,15 +462,34 @@ export const deleteUserData = async (uid: string): Promise<void> => {
 // ===================================================================================
 // PAGINATED HISTORY FUNCTIONS
 // ===================================================================================
-const PAGINATION_LIMIT = 15;
+const PAGINATION_LIMIT = 100;
 
-export const getTaskHistoryPaginated = async (uid: string, startAfterDoc: QueryDocumentSnapshot<DocumentData> | null = null) => {
+export const getTaskHistoryPaginated = async (
+    uid: string, 
+    startAfterDoc: QueryDocumentSnapshot<DocumentData> | null = null,
+    startDate?: Date,
+    endDate?: Date
+) => {
     const historyCollectionRef = collection(db, "users", uid, "taskHistory");
-    let q = query(historyCollectionRef, orderBy('timestamp', 'desc'), limit(PAGINATION_LIMIT));
     
-    if (startAfterDoc) {
-        q = query(historyCollectionRef, orderBy('timestamp', 'desc'), startAfter(startAfterDoc), limit(PAGINATION_LIMIT));
+    // Build constraints array
+    const constraints: any[] = [orderBy('timestamp', 'desc')];
+
+    if (startDate) {
+        constraints.push(where('timestamp', '>=', Timestamp.fromDate(startDate)));
     }
+    
+    if (endDate) {
+        constraints.push(where('timestamp', '<=', Timestamp.fromDate(endDate)));
+    }
+
+    if (startAfterDoc) {
+        constraints.push(startAfter(startAfterDoc));
+    }
+    
+    constraints.push(limit(PAGINATION_LIMIT));
+
+    const q = query(historyCollectionRef, ...constraints);
     
     const querySnapshot = await getDocs(q);
     const history = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TaskHistory));
@@ -402,19 +498,72 @@ export const getTaskHistoryPaginated = async (uid: string, startAfterDoc: QueryD
     return { history, lastVisible };
 };
 
-export const getWithdrawalHistoryPaginated = async (uid: string, startAfterDoc: QueryDocumentSnapshot<DocumentData> | null = null) => {
+// NEW: Count Function
+export const getTaskHistoryCount = async (uid: string, startDate?: Date, endDate?: Date): Promise<number> => {
+    const historyCollectionRef = collection(db, "users", uid, "taskHistory");
+    const constraints: any[] = [];
+
+    if (startDate) {
+        constraints.push(where('timestamp', '>=', Timestamp.fromDate(startDate)));
+    }
+    
+    if (endDate) {
+        constraints.push(where('timestamp', '<=', Timestamp.fromDate(endDate)));
+    }
+
+    const q = query(historyCollectionRef, ...constraints);
+    const snapshot = await getCountFromServer(q);
+    return snapshot.data().count;
+};
+
+export const getWithdrawalHistoryPaginated = async (
+    uid: string, 
+    startAfterDoc: QueryDocumentSnapshot<DocumentData> | null = null,
+    startDate?: Date,
+    endDate?: Date
+) => {
     const historyCollectionRef = collection(db, "users", uid, "withdrawalHistory");
-    let q = query(historyCollectionRef, orderBy('timestamp', 'desc'), limit(PAGINATION_LIMIT));
+    
+    const constraints: any[] = [orderBy('timestamp', 'desc')];
+
+    if (startDate) {
+        constraints.push(where('timestamp', '>=', Timestamp.fromDate(startDate)));
+    }
+    
+    if (endDate) {
+        constraints.push(where('timestamp', '<=', Timestamp.fromDate(endDate)));
+    }
     
     if (startAfterDoc) {
-        q = query(historyCollectionRef, orderBy('timestamp', 'desc'), startAfter(startAfterDoc), limit(PAGINATION_LIMIT));
+        constraints.push(startAfter(startAfterDoc));
     }
+    
+    constraints.push(limit(PAGINATION_LIMIT));
+    
+    const q = query(historyCollectionRef, ...constraints);
     
     const querySnapshot = await getDocs(q);
     const history = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Withdrawal));
     const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
     
     return { history, lastVisible };
+};
+
+export const getWithdrawalHistoryCount = async (uid: string, startDate?: Date, endDate?: Date): Promise<number> => {
+    const historyCollectionRef = collection(db, "users", uid, "withdrawalHistory");
+    const constraints: any[] = [];
+
+    if (startDate) {
+        constraints.push(where('timestamp', '>=', Timestamp.fromDate(startDate)));
+    }
+    
+    if (endDate) {
+        constraints.push(where('timestamp', '<=', Timestamp.fromDate(endDate)));
+    }
+
+    const q = query(historyCollectionRef, ...constraints);
+    const snapshot = await getCountFromServer(q);
+    return snapshot.data().count;
 };
 
 
@@ -536,11 +685,26 @@ export const getRankings = async (currentUid: string): Promise<RankedUser[]> => 
     const rankings: RankedUser[] = [];
     querySnapshot.docs.forEach((doc, index) => {
         const userData = doc.data() as UserProfile & { firstName?: string; lastName?: string };
+        
+        // Respect Privacy Settings
+        // If privacySettings.showInRanking is false, we could skip them OR anonymize them.
+        // Since pagination/ranking logic can get complex if we skip, let's anonymize them here.
+        // Note: In a real app, this filtering should happen via security rules or a separate server function
+        // to prevent leaking data to the client.
+        
+        let name = userData.fullName || `${userData.firstName || ''} ${userData.lastName || ''}`.trim();
+        let avatar = userData.avatarUrl;
+
+        if (userData.privacySettings && userData.privacySettings.showInRanking === false && userData.uid !== currentUid) {
+            name = "Anonymous User";
+            avatar = ""; // Default avatar
+        }
+
         rankings.push({
             uid: userData.uid,
             rank: index + 1,
-            name: userData.fullName || `${userData.firstName || ''} ${userData.lastName || ''}`.trim(),
-            avatar: userData.avatarUrl,
+            name: name,
+            avatar: avatar,
             points: userData.points,
             isCurrentUser: userData.uid === currentUid
         });

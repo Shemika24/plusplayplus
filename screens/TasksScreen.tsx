@@ -30,40 +30,40 @@ interface DailyTaskState {
 const SkeletonTaskItemCard: React.FC = () => (
     <div className="bg-white rounded-xl shadow-md flex items-center p-2.5 border border-gray-200 animate-pulse">
         <div className="w-10 h-10 rounded-lg bg-gray-200 mr-3 flex-shrink-0"></div>
-        <div className="flex-grow space-y-2 min-w-0">
+        <div className="flex-grow space-y-2">
             <div className="h-4 bg-gray-200 rounded w-3/4"></div>
             <div className="h-3 bg-gray-200 rounded w-1/2"></div>
         </div>
-        <div className="h-8 w-20 rounded-full bg-gray-200 ml-2 flex-shrink-0"></div>
+        <div className="h-8 w-24 rounded-full bg-gray-200 ml-2 flex-shrink-0"></div>
     </div>
 );
 
 const TaskItemCard: React.FC<{ task: ShuffledTask; onStart: (task: ShuffledTask) => void; isActive: boolean; disabled: boolean; }> = ({ task, onStart, isActive, disabled }) => (
-    <div className="bg-white rounded-xl shadow-md flex items-center p-2.5 border border-gray-200 hover:bg-gray-50 transition-colors">
+    <div className="bg-white rounded-xl shadow-md flex items-center p-2.5 border border-gray-200">
         <div className={`w-10 h-10 rounded-lg ${task.categoryIconBgColor} flex items-center justify-center mr-3 flex-shrink-0`}>
             <i className={`${task.categoryIcon} ${task.categoryIconColor} text-xl`}></i>
         </div>
-        <div className="flex-grow min-w-0">
-            <h4 className="font-semibold text-sm text-[var(--dark)] truncate">{task.title}</h4>
-            <div className="flex items-center text-xs text-[var(--primary)] font-semibold mt-1 truncate">
+        <div className="flex-grow">
+            <h4 className="font-semibold text-sm text-[var(--dark)]">{task.title}</h4>
+            <div className="flex items-center text-xs text-[var(--primary)] font-semibold mt-1">
                 <i className="fa-regular fa-clock mr-1"></i>
                 <span>{task.duration}s</span>
                 <span className="mx-1.5 text-gray-300">|</span>
-                <span className="text-green-500 font-bold">+{task.points} pts</span>
+                <span className="text-green-500 font-bold">+{task.points} points</span>
             </div>
         </div>
         <button
             onClick={() => onStart(task)}
             disabled={disabled}
-            className={`font-bold h-8 px-3 md:px-4 rounded-full shadow-md text-xs md:text-sm ml-2 flex-shrink-0 transition-all duration-300 flex items-center justify-center
+            className={`font-bold h-8 w-24 rounded-full shadow-md text-sm ml-2 flex-shrink-0 transition-all duration-300 flex items-center justify-center
                 ${disabled
                     ? 'bg-gray-400 text-white cursor-wait'
-                    : 'bg-gradient-to-r from-amber-600 to-yellow-400 text-white transform active:scale-95'
+                    : 'bg-gradient-to-r from-amber-600 to-yellow-400 text-white transform hover:scale-105'
                 }`}
         >
             {isActive ? (
                 <>
-                    <i className="fa-solid fa-spinner fa-spin mr-1.5"></i>
+                    <i className="fa-solid fa-spinner fa-spin mr-2"></i>
                     <span>Wait</span>
                 </>
             ) : (
@@ -124,7 +124,7 @@ const BreakTimer: React.FC<{ endTime: Date; onBreakEnd: () => void }> = ({ endTi
             <p className="text-gray-600 mt-2">
                 Great job! Your next set of tasks will be available in:
             </p>
-            <p className="font-mono text-3xl md:text-4xl font-bold text-[var(--dark)] my-4 bg-sky-100 p-3 rounded-lg tracking-wider">
+            <p className="font-mono text-4xl font-bold text-[var(--dark)] my-4 bg-sky-100 p-3 rounded-lg tracking-wider">
                 {timeLeft}
             </p>
         </div>
@@ -169,6 +169,7 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
 
         try {
             // 2. Trigger Feedback
+            // For Interstitial: Vibrate here at the very end (16s elapsed)
             if (isInterstitial) {
                 vibrate(200);
             }
@@ -216,9 +217,14 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
             const isInterstitial = task.categoryIcon.includes('fa-rectangle-ad');
 
             if (isInterstitial) {
+                // Interstitial Logic (Duration 16s)
+                // Sound at 1s left (15s elapsed)
                 if (timeLeft === 1) playSound(SOUNDS.SUCCESS, 0.8);
             } else {
+                // Pop Logic (Duration D + 1s)
+                // Sound at 2s left (D - 1s elapsed)
                 if (timeLeft === 2) playSound(SOUNDS.SUCCESS, 0.8);
+                // Vibration at 1s left (D elapsed)
                 if (timeLeft === 1) vibrate(200);
             }
         }
@@ -233,6 +239,8 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
         const isInterstitial = task.categoryIcon.includes('fa-rectangle-ad');
         const type = isInterstitial ? 'Interstitial' : 'Pop';
         
+        // Interstitial duration is 16s (Sound at 15s, Reward at 16s)
+        // Pop duration is Task Duration + 1s delay
         const duration = isInterstitial ? 16 : task.duration + 1;
         
         showTaskAd(task.id, task.points, duration, type);
@@ -256,7 +264,7 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
 
         if (dailyState && dailyState.tasks.length > 0) {
              return (
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                 <div className="space-y-3">
                     {dailyState.tasks.map(task => (
                         <TaskItemCard
                             key={task.id}
@@ -283,7 +291,7 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
     };
 
     return (
-        <div className="p-4 md:p-6 pb-24 text-[var(--dark)] h-full">
+        <div className="p-4 md:p-6 pb-24 text-[var(--dark)] min-h-full relative">
             {/* Success Modal */}
             {successInfo && <SuccessModal points={successInfo.points} />}
             
@@ -320,7 +328,7 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
 
                     <button 
                         onClick={() => cancelAd(false)}
-                        className="px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-semibold hover:bg-red-50 hover:text-red-500 transition-colors flex items-center active:scale-95"
+                        className="px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-semibold hover:bg-red-50 hover:text-red-500 transition-colors flex items-center"
                     >
                         <i className="fa-solid fa-xmark mr-2"></i>
                         Cancel Task
@@ -338,7 +346,7 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
             <div className="bg-white rounded-xl shadow-lg p-4 mb-6 border-l-4 border-[var(--primary)]">
                 <div className="flex justify-between items-center mb-4">
                      <h3 className="font-bold text-lg text-[var(--dark)]">Tasks</h3>
-                     <button onClick={() => onNavigate('TaskHistory')} className="text-[var(--gray)] hover:text-[var(--dark)] transition-colors p-2">
+                     <button onClick={() => onNavigate('TaskHistory')} className="text-[var(--gray)] hover:text-[var(--dark)] transition-colors">
                         <i className="fa-solid fa-clock-rotate-left text-xl"></i>
                     </button>
                 </div>

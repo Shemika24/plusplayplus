@@ -12,27 +12,27 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ userProfile, onMenuClick, onNotificationsClick, onProfileClick, activeScreen, onBackClick }) => {
-  const isSubScreen = ['Notifications', 'ReferBonus', 'Referrals', 'Profile', 'Withdraw', 'WithdrawalHistory', 'TaskHistory'].includes(activeScreen);
+  const isSubScreen = ['Notifications', 'ReferBonus', 'Referrals', 'Profile', 'Withdraw', 'WithdrawalHistory', 'TaskHistory', 'SpecialOffers'].includes(activeScreen);
 
   return (
-    <header className="fixed top-0 left-0 right-0 bg-[#4a6bff] text-white flex items-center justify-between px-4 shadow-lg z-20 pt-safe transition-all duration-300" style={{ height: 'calc(4rem + env(safe-area-inset-top))' }}>
-      <div className="flex items-center space-x-4 h-16">
+    <header className="fixed top-0 left-0 right-0 h-16 bg-[#4a6bff] text-white flex items-center justify-between px-4 shadow-lg z-20">
+      <div className="flex items-center space-x-4">
         {isSubScreen ? (
-           <button onClick={onBackClick} className="text-[#f5f6fa] hover:text-[#00d2d3] transition-colors w-10 h-10 flex items-center justify-center text-xl rounded-full active:bg-white/10">
+           <button onClick={onBackClick} className="text-[#f5f6fa] hover:text-[#00d2d3] transition-colors w-6 h-6 flex items-center justify-center text-xl">
               <i className="fa-solid fa-arrow-left"></i>
            </button>
         ) : (
-          <button onClick={onMenuClick} className="text-[#f5f6fa] hover:text-[#00d2d3] transition-colors w-10 h-10 flex items-center justify-center text-xl rounded-full active:bg-white/10">
+          <button onClick={onMenuClick} className="text-[#f5f6fa] hover:text-[#00d2d3] transition-colors w-6 h-6 flex items-center justify-center text-xl">
               <i className="fa-solid fa-bars"></i>
           </button>
         )}
-        <h1 className="text-lg md:text-xl font-bold text-white truncate max-w-[150px] md:max-w-none">DYVERZE ADS</h1>
+        <h1 className="text-xl font-bold text-white">DYVERZE ADS</h1>
       </div>
-      <div className="flex items-center space-x-2 md:space-x-4 h-16">
-        <button onClick={onNotificationsClick} className="text-[#f5f6fa] hover:text-[#00d2d3] transition-colors relative w-10 h-10 flex items-center justify-center text-xl rounded-full active:bg-white/10">
+      <div className="flex items-center space-x-4">
+        <button onClick={onNotificationsClick} className="text-[#f5f6fa] hover:text-[#00d2d3] transition-colors relative w-6 h-6 flex items-center justify-center text-xl">
             <i className="fa-solid fa-bell"></i>
             {/* This can be made dynamic later */}
-            <span className="absolute top-2 right-2 block h-2.5 w-2.5 rounded-full bg-[#ff6b9d] ring-2 ring-[#4a6bff]"></span>
+            <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-[#ff6b9d] ring-2 ring-[#4a6bff]"></span>
         </button>
         <button onClick={onProfileClick} className="focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#4a6bff] focus:ring-white rounded-full">
             {userProfile?.avatarUrl ? (

@@ -5,12 +5,6 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 declare global {
     interface Window {
         show_10206331?: (options?: { type?: string; ymid?: string }) => Promise<void>;
-        Telegram?: {
-            WebApp?: {
-                platform?: string;
-                initData?: string;
-            };
-        };
     }
 }
 

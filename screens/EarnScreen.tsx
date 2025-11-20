@@ -2,14 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import DailyCheckinModal from '../components/modals/DailyCheckinModal';
 import LuckyWheelModal from '../components/modals/LuckyWheelModal';
-import DailyComboModal from '../components/modals/DailyComboModal';
 import Modal from '../components/Modal';
-import { SpinWheelState, UserProfile } from '../types';
+import { SpinWheelState, UserProfile, Screen } from '../types';
 import { saveSpinResult, getUserProfile } from '../services/firestoreService';
 import { getAuth } from 'firebase/auth';
 
 interface EarnScreenProps {
-    onNavigateToReferrals: () => void;
+    onNavigate: (screen: Screen) => void;
     onEarnPoints: (points: number, title: string, icon: string, iconColor: string) => void;
     userProfile?: UserProfile;
 }
@@ -64,19 +63,18 @@ const earnOptions: EarnOption[] = [
 
 // Reusable card component for grid items
 const EarnCard: React.FC<{ option: EarnOption; onClick: () => void; }> = ({ option, onClick }) => (
-    <button onClick={onClick} className="bg-white rounded-xl shadow-lg p-4 text-center flex flex-col items-center justify-center transform active:scale-95 hover:scale-105 transition-transform duration-200 h-full min-h-[140px]">
-        <i className={`${option.icon} ${option.iconColor} text-3xl md:text-4xl mb-3`}></i>
-        <h3 className="font-bold text-sm md:text-base text-[var(--dark)]">{option.title}</h3>
+    <button onClick={onClick} className="bg-white rounded-xl shadow-lg p-4 text-center flex flex-col items-center justify-center transform hover:scale-105 transition-transform duration-300 h-full">
+        <i className={`${option.icon} ${option.iconColor} text-3xl mb-3`}></i>
+        <h3 className="font-bold text-md text-[var(--dark)]">{option.title}</h3>
         <p className="text-xs text-[var(--gray)] mt-1 flex-grow">{option.subtitle}</p>
     </button>
 );
 
 
-const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigateToReferrals, onEarnPoints, userProfile }) => {
+const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigate, onEarnPoints, userProfile }) => {
     // Modal states
     const [isDailyCheckinOpen, setDailyCheckinOpen] = useState(false);
     const [isLuckyWheelOpen, setLuckyWheelOpen] = useState(false);
-    const [isDailyComboOpen, setDailyComboOpen] = useState(false);
 
     // Online status
     const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -168,9 +166,9 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigateToReferrals, onEarnPo
         } else if (title === 'Lucky Wheel') {
             fetchUserData().then(() => setLuckyWheelOpen(true));
         } else if (title === 'Special Offers') {
-            setDailyComboOpen(true);
+            onNavigate('SpecialOffers');
         } else if (title === 'Invite Friends') {
-            onNavigateToReferrals();
+            onNavigate('Referrals');
         }
     };
     
@@ -207,13 +205,13 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigateToReferrals, onEarnPo
         <div className="flex flex-col h-full p-4 md:p-6 pb-24 text-[var(--dark)]">
             <h2 className="text-xl font-bold text-[var(--dark)] mb-4 px-2 flex-shrink-0">Explore &amp; Earn</h2>
             
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 flex-grow auto-rows-min">
+            <div className="grid grid-cols-2 gap-4 flex-grow">
                 {earnOptions.map((option) => (
                     <EarnCard key={option.title} option={option} onClick={() => handleCardClick(option.title)} />
                 ))}
             </div>
 
-            <div className="bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] text-white rounded-xl shadow-xl p-4 text-center flex-shrink-0 mt-4 md:mt-6">
+            <div className="bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] text-white rounded-xl shadow-xl p-4 text-center flex-shrink-0 mt-4">
                  <div className="flex items-center justify-center mb-2">
                     <i className="fa-solid fa-fire text-yellow-300 text-lg mr-2"></i>
                     <h3 className="font-extrabold text-md">Unique Offer!</h3>
@@ -246,12 +244,6 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigateToReferrals, onEarnPo
                 spinWheelState={spinWheelState}
                 onSpinComplete={handleSpinComplete}
                 isOnline={isOnline}
-            />
-
-            <DailyComboModal 
-                isOpen={isDailyComboOpen}
-                onClose={() => setDailyComboOpen(false)}
-                onEarnPoints={onEarnPoints}
             />
         </div>
     );

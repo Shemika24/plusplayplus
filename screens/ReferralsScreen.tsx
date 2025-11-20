@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { UserProfile } from '../types';
 
 interface ReferralsScreenProps {
@@ -31,12 +31,25 @@ const HowItWorksStep: React.FC<{ number: number; title: string; description: str
 
 const ReferralsScreen: React.FC<ReferralsScreenProps> = ({ userProfile, onBack }) => {
     const [copied, setCopied] = useState(false);
-    const referralLink = userProfile.referralLink;
     const { referrals } = userProfile;
+
+    // Detect Telegram environment and user ID
+    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    const telegramId = tgUser?.id || userProfile.telegramId;
+
+    // Bot Username definition
+    const BOT_USERNAME = "plusplayplus_bot";
+    
+    // Determine the active referral link
+    // ALWAYS use the Telegram Bot link. 
+    // Prioritize Telegram ID, fallback to Firebase UID if Telegram ID is missing.
+    // This prevents the https://dyverze.ads/... link from showing.
+    const referralCode = telegramId ? telegramId : userProfile.uid;
+    const activeReferralLink = `https://t.me/${BOT_USERNAME}?start=${referralCode}`;
 
     const handleCopy = async () => {
         try {
-            await navigator.clipboard.writeText(referralLink);
+            await navigator.clipboard.writeText(activeReferralLink);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
@@ -46,12 +59,36 @@ const ReferralsScreen: React.FC<ReferralsScreenProps> = ({ userProfile, onBack }
     };
 
     const handleShare = async () => {
+        // Check if we are in Telegram Web App environment and have a valid ID
+        const webApp = window.Telegram?.WebApp;
+        const text = `🎉 Junte-se a este incrível bot e comece a ganhar! Use meu link para ganhar um bônus especial:`;
+        const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(activeReferralLink)}&text=${encodeURIComponent(text)}`;
+
+        if (webApp) {
+            try {
+                if (webApp.openTelegramLink) {
+                    webApp.openTelegramLink(shareUrl);
+                } else {
+                    // Fallback if openTelegramLink is not available
+                    window.open(shareUrl, '_blank');
+                }
+            } catch (e) {
+                console.warn("Failed to open Telegram link, falling back to native share", e);
+                fallbackShare();
+            }
+        } else {
+            // Standard web fallback
+            fallbackShare();
+        }
+    };
+
+    const fallbackShare = async () => {
         if (navigator.share) {
             try {
                 await navigator.share({
                     title: 'Join DYVERZE ADS!',
-                    text: 'Earn money by watching ads and completing tasks. Join me on DYVERZE ADS!',
-                    url: referralLink,
+                    text: '🎉 Junte-se a este incrível bot e comece a ganhar! Use meu link para ganhar um bônus especial:',
+                    url: activeReferralLink,
                 });
             } catch (err) {
                 console.error('Error sharing: ', err);
@@ -111,8 +148,8 @@ const ReferralsScreen: React.FC<ReferralsScreenProps> = ({ userProfile, onBack }
                 {/* Share Your Link Section */}
                 <div className="bg-white p-5 rounded-xl shadow-lg">
                     <h3 className="text-xl font-bold text-center text-[var(--dark)] mb-4">Share Your Link</h3>
-                    <div className="w-full text-center bg-gray-100 border border-gray-200 rounded-lg p-3 mb-4 text-[var(--gray)] font-mono text-sm">
-                        {referralLink}
+                    <div className="w-full text-center bg-gray-100 border border-gray-200 rounded-lg p-3 mb-4 text-[var(--gray)] font-mono text-sm break-all">
+                        {activeReferralLink}
                     </div>
                     <button 
                         onClick={handleCopy}

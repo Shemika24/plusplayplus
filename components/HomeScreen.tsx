@@ -14,6 +14,8 @@ import RankScreen from '../screens/RankScreen';
 import WithdrawScreen from '../screens/WithdrawScreen';
 import WithdrawalHistoryScreen from '../screens/WithdrawalHistoryScreen';
 import TaskHistoryScreen from '../screens/TaskHistoryScreen';
+import SpecialOffersScreen from '../screens/SpecialOffersScreen';
+import DailyComboModal from './modals/DailyComboModal';
 import { Screen, TaskHistory, Withdrawal, UserProfile } from '../types';
 import { addTaskHistoryItem, addWithdrawalRequest } from '../services/firestoreService';
 
@@ -29,6 +31,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>(initialProfile);
   const [referralsSource, setReferralsSource] = useState<Screen>('ReferBonus');
+  const [isBonusCodeModalOpen, setBonusCodeModalOpen] = useState(false);
 
   useEffect(() => {
     setUserProfile(initialProfile);
@@ -51,6 +54,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
         setActiveTab(referralsSource);
     } else if (['Notifications', 'Profile', 'ReferBonus'].includes(activeTab)) {
         setActiveTab('Home');
+    } else if (activeTab === 'SpecialOffers') {
+        setActiveTab('Earn');
     } else {
         setActiveTab('Home');
     }
@@ -142,7 +147,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
       case 'Wallet':
         return <WalletScreen userProfile={userProfile} onWithdrawClick={() => handleNavigation('Withdraw')} onHistoryClick={() => handleNavigation('WithdrawalHistory')} />;
       case 'Earn':
-        return <EarnScreen onNavigateToReferrals={() => handleNavigation('Referrals')} onEarnPoints={handleEarnPoints} userProfile={userProfile} />;
+        return <EarnScreen onNavigate={handleNavigation} onEarnPoints={handleEarnPoints} userProfile={userProfile} />;
+      case 'SpecialOffers':
+        return <SpecialOffersScreen />;
       case 'Rank':
         return <RankScreen currentUserProfile={userProfile} />;
       case 'Profile':
@@ -154,19 +161,19 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
       case 'Referrals':
         return <ReferralsScreen userProfile={userProfile} onBack={() => handleNavigation(referralsSource)} />;
       case 'Withdraw':
-        return <WithdrawScreen balance={userProfile.points / 83500} onBack={() => handleNavigation('Wallet')} onNewWithdrawal={handleNewWithdrawal} />;
+        return <WithdrawScreen balance={userProfile.points / 83500} onBack={() => handleNavigation('Wallet')} onNewWithdrawal={handleNewWithdrawal} userProfile={userProfile} />;
       case 'WithdrawalHistory':
         return <WithdrawalHistoryScreen userProfile={userProfile} />;
       case 'TaskHistory':
         return <TaskHistoryScreen userProfile={userProfile} />;
       case 'Home':
       default:
-        return <MainDashboardScreen userProfile={userProfile} onNavigate={handleNavigation} />;
+        return <MainDashboardScreen userProfile={userProfile} onNavigate={handleNavigation} onOpenBonusCode={() => setBonusCodeModalOpen(true)} />;
     }
   };
 
   return (
-    <div className="h-dvh bg-[var(--gray-light)] flex flex-col">
+    <div className="h-screen bg-[var(--gray-light)]">
       <Header 
         userProfile={userProfile} 
         onMenuClick={() => setSidebarOpen(true)}
@@ -185,19 +192,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
         onHelpCenter={() => alert('Help Center clicked')}
         onLogout={onLogout}
       />
-      {/* Main container adjusted for safe areas and fixed headers/footers */}
-      <main className="flex-1 overflow-y-auto pt-[calc(4rem+env(safe-area-inset-top))] pb-[calc(5rem+env(safe-area-inset-bottom))]">
-        <div className="max-w-4xl mx-auto w-full h-full">
-             {renderScreen()}
-        </div>
+      <main className="pt-16 h-full overflow-y-auto">
+        {renderScreen()}
       </main>
       <BottomNavBar activeTab={activeTab} setActiveTab={handleNavigation} />
+      
+      <DailyComboModal 
+        isOpen={isBonusCodeModalOpen}
+        onClose={() => setBonusCodeModalOpen(false)}
+        onEarnPoints={handleEarnPoints}
+      />
     </div>
   );
 };
 
 // Helper component for the restored Home screen dashboard
-const MainDashboardScreen: React.FC<{ userProfile: UserProfile; onNavigate: (screen: Screen) => void; }> = ({ userProfile, onNavigate }) => {
+const MainDashboardScreen: React.FC<{ userProfile: UserProfile; onNavigate: (screen: Screen) => void; onOpenBonusCode: () => void; }> = ({ userProfile, onNavigate, onOpenBonusCode }) => {
     const balance = userProfile.points / 83500;
     const withdrawalTiers = [5, 10, 25, 50, 100];
 
@@ -216,15 +226,15 @@ const MainDashboardScreen: React.FC<{ userProfile: UserProfile; onNavigate: (scr
     const rewardsRedeemed = userProfile.withdrawalStats.redeemedCount;
 
     return (
-        <div className="p-4 md:p-6 text-[var(--dark)] space-y-6">
+        <div className="p-4 md:p-6 pb-24 text-[var(--dark)]">
             {/* Balance Card */}
-            <div className="bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] rounded-2xl shadow-xl p-5 text-white">
+            <div className="bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] rounded-2xl shadow-xl p-5 mb-6 text-white">
                 <div className="flex justify-between items-start">
                     <div>
                         <p className="text-sm opacity-80">Balance:</p>
-                        <p className="text-3xl md:text-4xl font-bold">${balance.toFixed(2)}</p>
+                        <p className="text-2xl font-bold">${balance.toFixed(2)}</p>
                     </div>
-                    <div className="text-right w-1/2 md:w-2/5">
+                    <div className="text-right w-2/5">
                         <div className="w-full bg-white/25 rounded-full h-2 mb-1.5">
                             <div className="bg-[var(--secondary)] h-2 rounded-full" style={{ width: `${progressPercentage}%` }}></div>
                         </div>
@@ -234,28 +244,26 @@ const MainDashboardScreen: React.FC<{ userProfile: UserProfile; onNavigate: (scr
                 </div>
                 <button 
                     onClick={() => onNavigate('Withdraw')}
-                    className="mt-4 w-full flex items-center justify-center py-3 bg-white text-[var(--primary)] font-bold rounded-lg shadow-md hover:bg-gray-100 transition-all duration-300 transform hover:scale-[1.01] active:scale-95">
+                    className="mt-4 w-full flex items-center justify-center py-2 bg-white text-[var(--primary)] font-bold rounded-lg shadow-md hover:bg-gray-100 transition-all duration-300 transform hover:scale-[1.02]">
                     <i className="fa-solid fa-money-bill-transfer mr-2"></i>
                     <span>Cashout</span>
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Account Statistics */}
-                <div className="bg-white rounded-2xl shadow-lg p-4">
-                    <h2 className="text-lg font-bold text-[var(--dark)] mb-2 px-2">Account statistics</h2>
-                    <ListItem icon={<i className="fa-solid fa-wallet text-green-500 text-xl"></i>} title={`$${totalEarnings.toFixed(2)} USD`} subtitle="Total earnings" />
-                    <ListItem icon={<i className="fa-solid fa-clipboard-check text-green-500 text-xl"></i>} title={surveysCompleted.toLocaleString()} subtitle="Tasks Completed" />
-                    <ListItem icon={<i className="fa-solid fa-award text-blue-500 text-xl"></i>} title={rewardsRedeemed.toLocaleString()} subtitle="Rewards Redeemed" />
-                    <ListItem icon={<i className="fa-solid fa-gamepad text-yellow-500 text-xl"></i>} title="Games Activities" />
-                </div>
+            {/* Account Statistics */}
+            <div className="bg-white rounded-2xl shadow-lg p-4 mb-6">
+                <h2 className="text-lg font-bold text-[var(--dark)] mb-2 px-2">Account statistics</h2>
+                <ListItem icon={<i className="fa-solid fa-wallet text-green-500 text-xl"></i>} title={`$${totalEarnings.toFixed(2)} USD`} subtitle="Total earnings" />
+                <ListItem icon={<i className="fa-solid fa-clipboard-check text-green-500 text-xl"></i>} title={surveysCompleted.toLocaleString()} subtitle="Tasks Completed" />
+                <ListItem icon={<i className="fa-solid fa-award text-blue-500 text-xl"></i>} title={rewardsRedeemed.toLocaleString()} subtitle="Rewards Redeemed" />
+                <ListItem icon={<i className="fa-solid fa-gamepad text-yellow-500 text-xl"></i>} title="Games Activities" />
+            </div>
 
-                 {/* Bonus */}
-                 <div className="bg-white rounded-2xl shadow-lg p-4 h-full">
-                    <h2 className="text-lg font-bold text-[var(--dark)] mb-2 px-2">Bonus</h2>
-                    <ListItem icon={<i className="fa-solid fa-rocket text-purple-500 text-xl"></i>} title="Refer a Friend" onClick={() => onNavigate('ReferBonus')} />
-                    <ListItem icon={<i className="fa-solid fa-ticket text-pink-500 text-xl"></i>} title="Redeem Bonus Code" />
-                </div>
+             {/* Bonus */}
+             <div className="bg-white rounded-2xl shadow-lg p-4 mb-6">
+                <h2 className="text-lg font-bold text-[var(--dark)] mb-2 px-2">Bonus</h2>
+                <ListItem icon={<i className="fa-solid fa-rocket text-purple-500 text-xl"></i>} title="Refer a Friend" onClick={() => onNavigate('ReferBonus')} />
+                <ListItem icon={<i className="fa-solid fa-ticket text-pink-500 text-xl"></i>} title="Redeem Bonus Code" onClick={onOpenBonusCode} />
             </div>
         </div>
     );
