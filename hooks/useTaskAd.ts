@@ -64,14 +64,10 @@ export const useTaskAd = ({ onReward, onError }: UseTaskAdOptions) => {
         if (isLoading) return;
         
         // CORRECTED LOGIC:
-        // Interstitial Ads: Strict, require Telegram, use Preloading (Advanced Flow).
-        // Pop Ads: Simple, Web-compatible, no strict environment check (Simple Flow).
+        // Interstitial Ads: Strict, use Preloading (Advanced Flow).
+        // Pop Ads: Simple, Web-compatible (Simple Flow).
+        // Telegram requirement removed as requested.
         
-        if (type === 'Interstitial' && !isTelegramWebView()) {
-            onError(new Error("Interstitial Tasks must be performed inside the Telegram App for verification."));
-            return;
-        }
-
         setIsLoading(true);
         hasLeftAppRef.current = false;
         setActiveTaskInfo({ id: taskId, points });
