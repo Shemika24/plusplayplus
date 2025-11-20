@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>DYVERZE ADS</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
@@ -22,10 +22,24 @@
           --gray-medium: #e5e7eb;
           --gray-light: #f5f6fa;
           --light: #f5f6fa;
+          
+          /* Safe area variables */
+          --sat: env(safe-area-inset-top);
+          --sab: env(safe-area-inset-bottom);
       }
       body {
         font-family: 'Inter', sans-serif;
+        -webkit-tap-highlight-color: transparent;
+        overscroll-behavior-y: none; /* Prevents bounce effect on pull-to-refresh */
       }
+      
+      /* Custom Utilities for Safe Areas */
+      .pt-safe { padding-top: var(--sat); }
+      .pb-safe { padding-bottom: var(--sab); }
+      .top-safe { top: var(--sat); }
+      .bottom-safe { bottom: var(--sab); }
+      .h-dvh { height: 100dvh; }
+      .min-h-dvh { min-height: 100dvh; }
     </style>
      <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

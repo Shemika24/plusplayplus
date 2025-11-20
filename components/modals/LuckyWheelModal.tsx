@@ -54,7 +54,7 @@ interface Segment {
 const CongratsModal: React.FC<{ isOpen: boolean; prize: number; onClaim: () => void; }> = ({ isOpen, prize, onClaim }) => {
     useEffect(() => {
         if (isOpen) {
-            const timer = setTimeout(onClaim, 1000); // Auto-close after 1s
+            const timer = setTimeout(onClaim, 3000); // Auto-close after 3s
             return () => clearTimeout(timer);
         }
     }, [isOpen, onClaim]);
@@ -77,7 +77,7 @@ const CongratsModal: React.FC<{ isOpen: boolean; prize: number; onClaim: () => v
 const LossModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = ({ isOpen, onClose }) => {
     useEffect(() => {
         if (isOpen) {
-            const timer = setTimeout(onClose, 1000); // Auto-close after 1s
+            const timer = setTimeout(onClose, 3000); // Auto-close after 3s
             return () => clearTimeout(timer);
         }
     }, [isOpen, onClose]);
@@ -328,7 +328,7 @@ const LuckyWheelModal: React.FC<LuckyWheelModalProps> = ({ isOpen, onClose, spin
 
                         {/* The Wheel */}
                         <div
-                            className="w-full h-full rounded-full border-8 border-white shadow-xl transition-transform duration-[4000ms] ease-out"
+                            className="w-full h-full rounded-full border-8 border-[#4a6bff] shadow-2xl ring-4 ring-blue-100 transition-transform duration-[4000ms] ease-out"
                             style={{
                                 transform: `rotate(${rotation}deg)`,
                                 background: `conic-gradient(
@@ -343,7 +343,11 @@ const LuckyWheelModal: React.FC<LuckyWheelModalProps> = ({ isOpen, onClose, spin
                                     className="absolute w-1/2 h-1/2 top-0 left-0 origin-bottom-right flex justify-center items-start pt-4"
                                     style={{ transform: `rotate(${index * 45 + 22.5}deg)` }}
                                 >
-                                    {segment.icon}
+                                    {typeof segment.value === 'number' ? (
+                                        <span className="text-white font-bold text-lg drop-shadow-md">{segment.value}</span>
+                                    ) : (
+                                        segment.icon
+                                    )}
                                 </div>
                             ))}
                         </div>

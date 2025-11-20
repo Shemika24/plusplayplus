@@ -19,13 +19,15 @@ interface UseRewardedAdOptions {
     maxViewTimeSeconds?: number;
     onReward: (data: { trackingId: string; viewTime: number }) => void;
     onError?: (error: any) => void;
+    adType?: 'Interstitial' | 'Pop';
 }
 
 export const useRewardedAd = ({ 
     minViewTimeSeconds = 20, 
     maxViewTimeSeconds = 30,
     onReward, 
-    onError 
+    onError,
+    adType = 'Pop' 
 }: UseRewardedAdOptions) => {
     const [isLoading, setIsLoading] = useState(false);
     const [isPreloading, setIsPreloading] = useState(false);
@@ -48,6 +50,7 @@ export const useRewardedAd = ({
     useEffect(() => {
         const handleVisibilityChange = () => {
             // If the app becomes hidden (user went to ad), mark as left
+            // This logic generally applies to Pop ads where we monitor active time
             if (document.hidden && isAdActiveRef.current) {
                 hasLeftAppRef.current = true;
             }
@@ -124,14 +127,33 @@ export const useRewardedAd = ({
         setIsLoading(true);
         hasLeftAppRef.current = false; // Reset exit tracking
         const trackingId = generateTrackingId(userId);
+        
+        if (typeof window.show_10206331 !== 'function') {
+            setIsLoading(false);
+            if (onError) onError(new Error("Ad SDK not ready."));
+            return;
+        }
+
+        // Interstitial Logic
+        if (adType === 'Interstitial') {
+            console.log("Opening Interstitial Ad...");
+            window.show_10206331().then(() => {
+                setIsLoading(false);
+                // For interstitials, we don't track specific view time in the same way
+                onReward({ trackingId, viewTime: 0 });
+            }).catch((err: any) => {
+                console.warn("Interstitial Ad failed:", err);
+                setIsLoading(false);
+                if (onError) onError(err);
+            });
+            return;
+        }
+
+        // Pop Logic
         const viewTime = Math.floor(Math.random() * (maxViewTimeSeconds - minViewTimeSeconds + 1)) + minViewTimeSeconds;
 
         try {
-            if (typeof window.show_10206331 !== 'function') {
-                throw new Error("Ad SDK not ready.");
-            }
-
-            console.log(`Opening ad popup, required view time: ${viewTime}s`);
+            console.log(`Opening pop ad popup, required view time: ${viewTime}s`);
             
             await window.show_10206331({ 
                 type: 'pop', 
@@ -181,7 +203,7 @@ export const useRewardedAd = ({
             setIsLoading(false);
             if (onError) onError(error);
         }
-    }, [isLoading, maxViewTimeSeconds, minViewTimeSeconds, generateTrackingId, onReward, onError, clearAllTimers]);
+    }, [isLoading, maxViewTimeSeconds, minViewTimeSeconds, generateTrackingId, onReward, onError, clearAllTimers, adType]);
 
     const cancelAd = useCallback((isSystemCancellation = false) => {
         if (isAdActiveRef.current) {

@@ -235,7 +235,7 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
                 </h1>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 pb-24">
                 {isOnCooldown ? (
                     <div className="flex flex-col items-center justify-center text-center h-full p-6 bg-white rounded-xl shadow-lg">
                         <i className="fa-solid fa-clock-rotate-left text-5xl text-blue-500 mb-6"></i>
@@ -259,7 +259,7 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
 
                         <div>
                             <h3 className="text-md font-bold text-[var(--dark)] mb-3">Select Method</h3>
-                            <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                                 {paymentMethods.map(method => (
                                     <button 
                                         key={method.name}
@@ -271,7 +271,7 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
                                                 setSelectedCrypto(null);
                                             }
                                         }}
-                                        className={`p-3 border-2 rounded-lg flex flex-col items-center justify-center transition-all duration-200 ${selectedMethod === method.name ? 'border-[var(--primary)] bg-blue-50 shadow-md' : `border-gray-200 ${method.colors.bg} ${method.colors.hoverBorder}`}`}
+                                        className={`p-3 border-2 rounded-lg flex flex-col items-center justify-center transition-all duration-200 min-h-[100px] ${selectedMethod === method.name ? 'border-[var(--primary)] bg-blue-50 shadow-md' : `border-gray-200 ${method.colors.bg} ${method.colors.hoverBorder}`}`}
                                     >
                                         {typeof method.icon === 'string' ? (
                                             <i className={`${method.icon} text-2xl ${selectedMethod === method.name ? 'text-[var(--primary)]' : method.colors.icon}`}></i>
@@ -372,7 +372,7 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
                         <button 
                             onClick={handleWithdraw}
                             disabled={!canWithdraw}
-                            className="w-full bg-gradient-to-r from-green-500 to-teal-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-green-500/30 transition-all hover:scale-105 hover:brightness-110 active:scale-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 disabled:shadow-none"
+                            className="w-full bg-gradient-to-r from-green-500 to-teal-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-green-500/30 transition-all hover:scale-[1.01] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 disabled:shadow-none"
                         >
                             Withdraw Now
                         </button>

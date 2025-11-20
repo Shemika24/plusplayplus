@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import Modal from '../Modal';
 
@@ -59,7 +60,7 @@ const DailyComboModal: React.FC<DailyComboModalProps> = ({ isOpen, onClose, onEa
     setShowSuccess(true);
     localStorage.setItem(STORAGE_KEY, Date.now().toString());
     setComboCompletedToday(true); // Mark as completed for this session
-    setTimeout(onClose, 1500);
+    setTimeout(onClose, 3000);
   };
 
   const handleSkip = () => {

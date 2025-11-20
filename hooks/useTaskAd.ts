@@ -4,19 +4,20 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 interface UseTaskAdOptions {
     onReward: (data: { taskId: number; points: number }) => void;
     onError: (error: any) => void;
+    onTick?: (timeLeft: number, taskId: number) => void;
 }
 
-export const useTaskAd = ({ onReward, onError }: UseTaskAdOptions) => {
+export const useTaskAd = ({ onReward, onError, onTick }: UseTaskAdOptions) => {
     const [isLoading, setIsLoading] = useState(false);
     const [isAdActive, setIsAdActive] = useState(false);
     const [timeLeft, setTimeLeft] = useState(0);
-    const [activeTaskInfo, setActiveTaskInfo] = useState<{ id: number; points: number } | null>(null);
     
     const viewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const isAdActiveRef = useRef(false);
     const timeLeftRef = useRef(0);
     const hasLeftAppRef = useRef(false);
+    const currentTaskIdRef = useRef<number | null>(null);
 
     // Cleanup
     useEffect(() => {
@@ -31,6 +32,7 @@ export const useTaskAd = ({ onReward, onError }: UseTaskAdOptions) => {
             }
             if (!document.hidden && isAdActiveRef.current) {
                 // If user returns and time is still > 1s, cancel
+                // This enforces staying on the ad/page for the duration
                 if (timeLeftRef.current > 1) {
                     console.log('User returned too early.');
                     cancelAd(true);
@@ -53,66 +55,59 @@ export const useTaskAd = ({ onReward, onError }: UseTaskAdOptions) => {
         }
     }, []);
 
-    const isTelegramWebView = useCallback(() => {
-        return typeof window !== 'undefined' && 
-               !!window.Telegram && 
-               !!window.Telegram.WebApp &&
-               window.Telegram.WebApp.platform !== 'unknown';
-    }, []);
-
     const showTaskAd = useCallback(async (taskId: number, points: number, duration: number, type: 'Interstitial' | 'Pop') => {
         if (isLoading) return;
         
-        // CORRECTED LOGIC:
-        // Interstitial Ads: Strict, use Preloading (Advanced Flow).
-        // Pop Ads: Simple, Web-compatible (Simple Flow).
-        // Telegram requirement removed as requested.
-        
         setIsLoading(true);
         hasLeftAppRef.current = false;
-        setActiveTaskInfo({ id: taskId, points });
+        currentTaskIdRef.current = taskId;
         
-        // Use duration passed from task
-        const viewTime = duration;
+        // Ensure SDK is available
+        const showAdFn = (window as any).show_10206331;
+        if (typeof showAdFn !== 'function') {
+            setIsLoading(false);
+            onError(new Error("Ad SDK not initialized."));
+            return;
+        }
 
         try {
-             if (typeof window.show_10206331 !== 'function') {
-                throw new Error("Ad SDK not initialized.");
-            }
-
-            // Generate tracking ID
-            const trackingId = `task-${taskId}-${Date.now()}`;
-
-            // Preload Logic (Now applied to Interstitial as the 'Advanced' type)
+            // 1. Trigger Ad based on type
             if (type === 'Interstitial') {
-                 try {
-                    console.log("Preloading Interstitial Ad...");
-                    await window.show_10206331({ type: 'preload', ymid: trackingId });
-                 } catch (e) {
-                     console.warn("Preload step failed, continuing...", e);
-                 }
+                console.log("Opening Interstitial Ad...");
+                // Fire and forget the ad call, we rely on our own timer for the reward logic
+                showAdFn().catch((err: any) => {
+                    console.warn("Interstitial Ad failed/closed:", err);
+                    // We continue with the timer even if ad fails or is closed, 
+                    // to match the behavior of "Requires X seconds"
+                });
+            } else {
+                // Pop Ad Logic
+                const trackingId = `task-${taskId}-${Date.now()}`;
+                console.log(`Opening ${type} Ad (Pop mode)...`);
+                await showAdFn({ 
+                    type: 'pop', 
+                    ymid: trackingId 
+                });
             }
 
-            // Show Ad
-            console.log(`Opening ${type} Ad...`);
-            await window.show_10206331({ 
-                type: 'pop', // SDK usually uses 'pop' entry point for both, or assumes based on config
-                ymid: trackingId 
-            });
-
-            // Ad Opened
+            // 2. Start Unified Timer Logic
             setIsAdActive(true);
             isAdActiveRef.current = true;
-            setTimeLeft(viewTime);
-            timeLeftRef.current = viewTime;
+            setTimeLeft(duration);
+            timeLeftRef.current = duration;
             setIsLoading(false);
 
-            // Start Timers
             return new Promise<void>((resolve) => {
                 countdownRef.current = setInterval(() => {
                     setTimeLeft((prev) => {
                         const newVal = prev - 1;
                         timeLeftRef.current = newVal;
+                        
+                        // Trigger tick callback for custom sound/vibration logic
+                        if (onTick && currentTaskIdRef.current !== null) {
+                            onTick(newVal, currentTaskIdRef.current);
+                        }
+
                         if (newVal <= 0) {
                             if (countdownRef.current) clearInterval(countdownRef.current);
                             return 0;
@@ -122,17 +117,15 @@ export const useTaskAd = ({ onReward, onError }: UseTaskAdOptions) => {
                 }, 1000);
 
                 viewTimerRef.current = setTimeout(() => {
-                    // Success
-                    const completedTaskId = taskId; 
-                    const completedPoints = points;
-                    
+                    // Success Logic
                     clearAllTimers();
                     setIsAdActive(false);
                     isAdActiveRef.current = false;
+                    currentTaskIdRef.current = null;
                     
-                    onReward({ taskId: completedTaskId, points: completedPoints });
+                    onReward({ taskId, points });
                     resolve();
-                }, viewTime * 1000);
+                }, duration * 1000);
             });
 
         } catch (error) {
@@ -140,20 +133,22 @@ export const useTaskAd = ({ onReward, onError }: UseTaskAdOptions) => {
             clearAllTimers();
             setIsAdActive(false);
             isAdActiveRef.current = false;
+            currentTaskIdRef.current = null;
             setIsLoading(false);
             onError(error);
         }
-    }, [isLoading, isTelegramWebView, onReward, onError, clearAllTimers]);
+    }, [isLoading, onReward, onError, clearAllTimers, onTick]);
 
     const cancelAd = useCallback((isSystemCancellation = false) => {
         if (isAdActiveRef.current) {
             clearAllTimers();
             setIsAdActive(false);
             isAdActiveRef.current = false;
+            currentTaskIdRef.current = null;
             setIsLoading(false);
             
             const msg = isSystemCancellation 
-                ? "Verification Failed: You closed the ad window too early." 
+                ? "Verification Failed: You must wait for the timer to finish." 
                 : "Task cancelled.";
             onError(new Error(msg));
         }

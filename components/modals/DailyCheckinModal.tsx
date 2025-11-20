@@ -1,7 +1,9 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { useRewardedAd } from '../../hooks/useRewardedAd';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import InfoModal from '../modals/InfoModal';
+import { playSound, vibrate, SOUNDS } from '../../utils/sound';
+import { UserProfile } from '../../types';
+import { claimDailyCheckIn } from '../../services/firestoreService';
 
 // Define the structure for a single day in the check-in calendar
 type DayStatus = 'claimed' | 'claimable' | 'future';
@@ -11,6 +13,12 @@ interface Day {
     status: DayStatus;
     icon: string;
     reward: number;
+}
+
+interface DailyCheckinModalProps {
+    onClose: () => void;
+    onEarnPoints: (points: number, title: string, icon: string, iconColor: string) => void;
+    userProfile?: UserProfile;
 }
 
 // Updated reward values and icons
@@ -24,7 +32,6 @@ const initialDaysData: Day[] = [
     { day: 7, status: 'future', icon: 'fa-solid fa-gift', reward: 0 }, // Placeholder, value generated on claim
 ];
 
-const STORAGE_KEY = 'dailyCheckinState';
 
 const DayCard: React.FC<{ day: Day; onClaim: (day: number) => void; isLoading: boolean }> = ({ day, onClaim, isLoading }) => {
     let cardClasses = 'relative flex flex-col items-center justify-center p-1 rounded-lg aspect-square transition-all duration-300 overflow-hidden';
@@ -34,6 +41,7 @@ const DayCard: React.FC<{ day: Day; onClaim: (day: number) => void; isLoading: b
     let overlay = null;
 
     const isClaimable = day.status === 'claimable';
+    const isClaimed = day.status === 'claimed';
     const isSurpriseDay = day.day === 7;
     
     const displayIcon = (isSurpriseDay && day.status === 'claimed') ? 'fa-solid fa-box-open' : day.icon;
@@ -49,14 +57,14 @@ const DayCard: React.FC<{ day: Day; onClaim: (day: number) => void; isLoading: b
             textClasses = 'text-green-700';
             iconClasses += ' text-green-500';
             overlay = (
-                <div className="absolute inset-0 bg-green-500/70 rounded-lg flex items-center justify-center backdrop-blur-sm z-10">
+                <div className="absolute inset-0 bg-green-500 flex items-center justify-center z-10">
                     <i className="fa-solid fa-check text-white text-4xl"></i>
                 </div>
             );
             break;
         case 'future':
         default:
-            cardClasses += ' bg-gray-100';
+            cardClasses += ' bg-gray-100 hover:bg-gray-200 cursor-pointer';
             textClasses = 'text-gray-400';
             iconClasses += ' text-gray-400';
             break;
@@ -66,7 +74,7 @@ const DayCard: React.FC<{ day: Day; onClaim: (day: number) => void; isLoading: b
         <button 
             className={cardClasses} 
             onClick={() => isClaimable && !isLoading && onClaim(day.day)}
-            disabled={!isClaimable || isLoading}
+            disabled={isClaimed}
         >
             {overlay}
             {isLoading && isClaimable && (
@@ -85,7 +93,7 @@ const DayCard: React.FC<{ day: Day; onClaim: (day: number) => void; isLoading: b
     );
 }
 
-const DailyCheckinModal: React.FC<{ onClose: () => void; onEarnPoints: (points: number, title: string, icon: string, iconColor: string) => void; }> = ({ onClose, onEarnPoints }) => {
+const DailyCheckinModal: React.FC<DailyCheckinModalProps> = ({ onClose, onEarnPoints, userProfile }) => {
     const [days, setDays] = useState<Day[]>(initialDaysData);
     const [claimedToday, setClaimedToday] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
@@ -93,6 +101,8 @@ const DailyCheckinModal: React.FC<{ onClose: () => void; onEarnPoints: (points: 
     
     // State to track which day is currently being processed
     const [processingDay, setProcessingDay] = useState<number | null>(null);
+    const [timeLeft, setTimeLeft] = useState(15);
+    const [isTimerRunning, setIsTimerRunning] = useState(false);
     
     // Info Modal State
     const [infoModal, setInfoModal] = useState<{ isOpen: boolean; title: string; message: string; type: 'error' | 'info' | 'success' }>({
@@ -102,10 +112,77 @@ const DailyCheckinModal: React.FC<{ onClose: () => void; onEarnPoints: (points: 
         type: 'info'
     });
 
-    // Ad Logic Hooks
-    const handleRewardSuccess = useCallback(() => {
-        if (processingDay === null) return;
+    useEffect(() => {
+        if (!userProfile) return;
+
+        // Use server date formatted "YYYY-MM-DD" for consistency
+        const todayStr = new Date().toLocaleDateString("en-CA"); 
+        const lastClaimDateStr = userProfile.dailyCheckIn?.lastDate || "";
+        const currentStreak = userProfile.dailyCheckIn?.streak || 0;
+
+        let effectiveStreak = currentStreak;
+        let hasClaimedToday = lastClaimDateStr === todayStr;
+
+        // Naive check if streak is broken (simple approximation if dates are standard)
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toLocaleDateString("en-CA");
+
+        if (!hasClaimedToday && lastClaimDateStr !== yesterdayStr && lastClaimDateStr !== "") {
+            effectiveStreak = 0;
+        }
         
+        // Reset streak if it's over 7 days
+        if (effectiveStreak >= 7) {
+            effectiveStreak = 0;
+        }
+
+        setClaimedToday(hasClaimedToday);
+        
+        const nextClaimableDay = hasClaimedToday ? effectiveStreak : effectiveStreak + 1;
+
+        const updatedDays = initialDaysData.map(day => {
+            if (day.day < nextClaimableDay) {
+                return { ...day, status: 'claimed' as DayStatus };
+            }
+            if (day.day === nextClaimableDay && !hasClaimedToday) {
+                return { ...day, status: 'claimable' as DayStatus };
+            }
+            return { ...day, status: 'future' as DayStatus };
+        });
+
+        setDays(updatedDays);
+    }, [userProfile]);
+
+    // Timer Logic for 15s flow
+    useEffect(() => {
+        let interval: ReturnType<typeof setInterval>;
+        
+        if (isTimerRunning && timeLeft > 0) {
+            interval = setInterval(() => {
+                setTimeLeft(prev => {
+                    const newVal = prev - 1;
+                    // Sound at 14s (when 1s is left)
+                    if (newVal === 1) {
+                         playSound(SOUNDS.SUCCESS);
+                    }
+                    // Vibrate at 15s end (when 0s left)
+                    if (newVal === 0) {
+                        vibrate(200);
+                        handleRewardGrant(); // Grant reward when time is up
+                    }
+                    return newVal;
+                });
+            }, 1000);
+        }
+        
+        return () => clearInterval(interval);
+    }, [isTimerRunning, timeLeft]);
+
+    const handleRewardGrant = async () => {
+        if (processingDay === null || !userProfile) return;
+        setIsTimerRunning(false);
+
         const dayToClaim = days.find(d => d.day === processingDay);
         if (!dayToClaim) return;
 
@@ -119,144 +196,100 @@ const DailyCheckinModal: React.FC<{ onClose: () => void; onEarnPoints: (points: 
             finalReward = Math.round(randomNumber / 5) * 5;
         }
 
-        setClaimedReward(finalReward);
-        const iconColor = isSurpriseDay ? 'text-pink-400' : 'text-yellow-400';
-        onEarnPoints(finalReward, `Daily Check-in: Day ${dayToClaim.day}`, dayToClaim.icon, iconColor);
+        try {
+            const todayStr = new Date().toLocaleDateString("en-CA");
+            // Calculate new streak
+            const currentStreak = userProfile.dailyCheckIn?.streak || 0;
+            const newStreak = (currentStreak >= 7) ? 1 : currentStreak + 1;
 
-        const newState = {
-            lastClaimedDay: processingDay,
-            lastClaimedTimestamp: Date.now()
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+            // Server sync
+            await claimDailyCheckIn(userProfile.uid, finalReward, todayStr, newStreak);
 
-        setDays(prevDays => prevDays.map(d => 
-            d.day === processingDay 
-            ? { ...d, status: 'claimed', reward: finalReward } 
-            : d
-        ));
-        setClaimedToday(true);
-        setShowSuccess(true);
-        
-        setTimeout(() => {
-            onClose();
-        }, 2000);
-        
-        setProcessingDay(null);
-    }, [days, processingDay, onEarnPoints, onClose]);
+            setClaimedReward(finalReward);
+            onEarnPoints(finalReward, `Daily Check-in: Day ${dayToClaim.day}`, dayToClaim.icon, isSurpriseDay ? 'text-pink-400' : 'text-yellow-400');
 
-    const { 
-        showRewardedAd, 
-        cancelAd, 
-        isLoading: isAdLoading, 
-        isAdActive, 
-        timeLeft: adTimeLeft 
-    } = useRewardedAd({
-        minViewTimeSeconds: 15, 
-        maxViewTimeSeconds: 20,
-        onReward: handleRewardSuccess,
-        onError: (err) => setInfoModal({ isOpen: true, title: 'Error', message: "Could not load ad.", type: 'error' })
-    });
-
-    useEffect(() => {
-        // Function to check if two dates are on the same calendar day
-        const isSameDay = (d1: Date, d2: Date) => {
-            return d1.getFullYear() === d2.getFullYear() &&
-                d1.getMonth() === d2.getMonth() &&
-                d1.getDate() === d2.getDate();
-        };
-
-        // Function to check if a date was yesterday
-        const isYesterday = (d1: Date, d2: Date) => {
-            const yesterday = new Date(d2);
-            yesterday.setDate(d2.getDate() - 1);
-            return isSameDay(d1, yesterday);
-        };
-
-        const rawState = localStorage.getItem(STORAGE_KEY);
-        const storedState = rawState ? JSON.parse(rawState) : { lastClaimedDay: 0, lastClaimedTimestamp: 0 };
-        
-        const lastClaimDate = new Date(storedState.lastClaimedTimestamp);
-        const today = new Date();
-
-        let currentStreak = storedState.lastClaimedDay;
-        let hasClaimedToday = false;
-
-        if (storedState.lastClaimedTimestamp > 0) {
-            if (isSameDay(lastClaimDate, today)) {
-                hasClaimedToday = true;
-            } else if (!isYesterday(lastClaimDate, today)) {
-                // Streak broken
-                currentStreak = 0;
-            }
+            setDays(prevDays => prevDays.map(d => 
+                d.day === processingDay 
+                ? { ...d, status: 'claimed', reward: finalReward } 
+                : d
+            ));
+            setClaimedToday(true);
+            setShowSuccess(true);
+            
+            setTimeout(() => {
+                onClose();
+            }, 3000);
+            
+        } catch (e: any) {
+            setInfoModal({ isOpen: true, title: "Error", message: e.message || "Failed to claim reward.", type: 'error' });
+            setIsTimerRunning(false);
+            setProcessingDay(null);
         }
+    };
+
+    const handleDayClick = async (dayNumber: number) => {
+        if (claimedToday || processingDay !== null) return;
         
-        // Reset streak if it's over 7 days
-        if (currentStreak >= 7) {
-            currentStreak = 0;
+        // Check for user profile first to avoid issues
+        if (!userProfile) {
+             setInfoModal({ isOpen: true, title: "Error", message: "User profile not loaded. Please try again.", type: 'error' });
+             return;
         }
 
-        setClaimedToday(hasClaimedToday);
-        const nextClaimableDay = currentStreak + 1;
-
-        const updatedDays = initialDaysData.map(day => {
-            if (day.day < nextClaimableDay) {
-                return { ...day, status: 'claimed' as DayStatus };
-            }
-            if (day.day === nextClaimableDay && !hasClaimedToday) {
-                return { ...day, status: 'claimable' as DayStatus };
-            }
-            return { ...day, status: 'future' as DayStatus };
-        });
-
-        setDays(updatedDays);
-    }, []);
-
-    const handleDayClick = (dayNumber: number) => {
-        if (claimedToday) return;
         setProcessingDay(dayNumber);
-        showRewardedAd();
+        setTimeLeft(15);
+        setIsTimerRunning(true);
+
+        // Trigger Ad (Interstitial) - Fire and forget, or await if we wanted to pause timer?
+        // Request says "time based on 15s". We start timer AND show ad.
+        if (window.show_10206331) {
+            window.show_10206331().then(() => {
+                console.log("Ad closed by user.");
+                // We don't grant reward here, we wait for timer (15s) to finish.
+            }).catch(e => {
+                console.warn("Ad failed to load/show", e);
+                // We allow the timer to continue even if ad fails? 
+                // Usually yes to not block user, or we could show error.
+            });
+        } else {
+            console.warn("Ad SDK not ready");
+        }
     };
 
     const infoText = claimedToday
         ? 'You have already claimed today. Come back tomorrow!'
-        : "Watch a short ad to claim your daily reward!";
-
-    if (showSuccess) {
-        return (
-            <div className="text-center p-6">
-                <div className="w-20 h-20 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4 border-4 border-green-200 animate-bounce">
-                    <i className="fa-solid fa-gift text-green-500 text-4xl"></i>
-                </div>
-                <h3 className="text-2xl font-bold text-[var(--dark)] mb-2">Reward Claimed!</h3>
-                <p className="text-[var(--gray)]">
-                    You have received <span className="font-bold text-[var(--success)]">{claimedReward} bonus points</span>!
-                </p>
-            </div>
-        )
-    }
+        : "";
 
     return (
         <div className="p-4 md:p-6 relative">
-            {/* Ad Verification Overlay */}
-            {isAdActive && (
-                <div className="absolute inset-0 bg-white/95 z-50 flex flex-col items-center justify-center rounded-xl animate-fadeIn text-center p-4">
-                     <div className="w-16 h-16 mb-4 relative flex items-center justify-center">
-                         <svg className="animate-spin h-full w-full text-[var(--primary)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            {/* Success Overlay - Semi-transparent as requested previously for result */}
+            {showSuccess && (
+                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-xl animate-fadeIn">
+                    <div className="bg-white/90 p-8 rounded-2xl shadow-2xl text-center max-w-sm w-full relative overflow-hidden transform transition-all scale-100 border border-white/50">
+                        <div className="absolute inset-0 bg-gradient-to-br from-green-400/10 to-blue-400/10 pointer-events-none"></div>
+                        <div className="w-24 h-24 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-6 border-4 border-green-200 animate-bounce relative z-10">
+                            <i className="fa-solid fa-gift text-green-500 text-5xl"></i>
+                        </div>
+                        <h3 className="text-3xl font-extrabold text-gray-800 mb-2 relative z-10">Checked In!</h3>
+                        <p className="text-gray-600 relative z-10 text-lg">
+                            You earned <span className="font-bold text-green-600 text-xl">+{claimedReward}</span> points!
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* Processing Overlay */}
+            {processingDay !== null && !showSuccess && (
+                <div className="absolute inset-0 z-20 bg-white/90 flex flex-col items-center justify-center rounded-xl">
+                     <div className="w-20 h-20 mb-6 relative flex items-center justify-center">
+                        <svg className="animate-spin h-full w-full text-[var(--primary)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <span className="absolute font-bold text-[var(--dark)] text-sm">{adTimeLeft}s</span>
-                     </div>
-                     <h3 className="text-lg font-bold text-[var(--dark)] mb-2">Checking Ad...</h3>
-                     <p className="text-sm text-[var(--gray)] mb-6 max-w-[200px]">
-                        Please verify the ad content for {adTimeLeft}s to claim reward.
-                     </p>
-                     <div className="w-full bg-gray-200 rounded-full h-2 mb-4 max-w-[200px]">
-                        <div className="bg-[var(--primary)] h-2 rounded-full transition-all duration-1000 linear" style={{ width: `${((20 - adTimeLeft) / 20) * 100}%` }}></div>
-                     </div>
-                     <button onClick={() => cancelAd(false)} className="mt-4 text-sm text-[var(--gray)] hover:text-[var(--error)]">
-                         Cancel & Close
-                     </button>
+                        <span className="absolute font-bold text-2xl text-[var(--dark)]">{timeLeft}</span>
+                    </div>
+                    <p className="font-bold text-lg text-gray-700 animate-pulse">Checking In...</p>
+                    <p className="text-sm text-gray-500 mt-2">Please wait for verification.</p>
                 </div>
             )}
 
@@ -266,7 +299,7 @@ const DailyCheckinModal: React.FC<{ onClose: () => void; onEarnPoints: (points: 
                         key={day.day} 
                         day={day} 
                         onClaim={handleDayClick} 
-                        isLoading={isAdLoading && processingDay === day.day}
+                        isLoading={processingDay !== null}
                     />
                 ))}
             </div>

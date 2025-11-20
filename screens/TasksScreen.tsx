@@ -30,40 +30,40 @@ interface DailyTaskState {
 const SkeletonTaskItemCard: React.FC = () => (
     <div className="bg-white rounded-xl shadow-md flex items-center p-2.5 border border-gray-200 animate-pulse">
         <div className="w-10 h-10 rounded-lg bg-gray-200 mr-3 flex-shrink-0"></div>
-        <div className="flex-grow space-y-2">
+        <div className="flex-grow space-y-2 min-w-0">
             <div className="h-4 bg-gray-200 rounded w-3/4"></div>
             <div className="h-3 bg-gray-200 rounded w-1/2"></div>
         </div>
-        <div className="h-8 w-24 rounded-full bg-gray-200 ml-2 flex-shrink-0"></div>
+        <div className="h-8 w-20 rounded-full bg-gray-200 ml-2 flex-shrink-0"></div>
     </div>
 );
 
 const TaskItemCard: React.FC<{ task: ShuffledTask; onStart: (task: ShuffledTask) => void; isActive: boolean; disabled: boolean; }> = ({ task, onStart, isActive, disabled }) => (
-    <div className="bg-white rounded-xl shadow-md flex items-center p-2.5 border border-gray-200">
+    <div className="bg-white rounded-xl shadow-md flex items-center p-2.5 border border-gray-200 hover:bg-gray-50 transition-colors">
         <div className={`w-10 h-10 rounded-lg ${task.categoryIconBgColor} flex items-center justify-center mr-3 flex-shrink-0`}>
             <i className={`${task.categoryIcon} ${task.categoryIconColor} text-xl`}></i>
         </div>
-        <div className="flex-grow">
-            <h4 className="font-semibold text-sm text-[var(--dark)]">{task.title}</h4>
-            <div className="flex items-center text-xs text-[var(--primary)] font-semibold mt-1">
+        <div className="flex-grow min-w-0">
+            <h4 className="font-semibold text-sm text-[var(--dark)] truncate">{task.title}</h4>
+            <div className="flex items-center text-xs text-[var(--primary)] font-semibold mt-1 truncate">
                 <i className="fa-regular fa-clock mr-1"></i>
                 <span>{task.duration}s</span>
                 <span className="mx-1.5 text-gray-300">|</span>
-                <span className="text-green-500 font-bold">+{task.points} points</span>
+                <span className="text-green-500 font-bold">+{task.points} pts</span>
             </div>
         </div>
         <button
             onClick={() => onStart(task)}
             disabled={disabled}
-            className={`font-bold h-8 w-24 rounded-full shadow-md text-sm ml-2 flex-shrink-0 transition-all duration-300 flex items-center justify-center
+            className={`font-bold h-8 px-3 md:px-4 rounded-full shadow-md text-xs md:text-sm ml-2 flex-shrink-0 transition-all duration-300 flex items-center justify-center
                 ${disabled
                     ? 'bg-gray-400 text-white cursor-wait'
-                    : 'bg-gradient-to-r from-amber-600 to-yellow-400 text-white transform hover:scale-105'
+                    : 'bg-gradient-to-r from-amber-600 to-yellow-400 text-white transform active:scale-95'
                 }`}
         >
             {isActive ? (
                 <>
-                    <i className="fa-solid fa-spinner fa-spin mr-2"></i>
+                    <i className="fa-solid fa-spinner fa-spin mr-1.5"></i>
                     <span>Wait</span>
                 </>
             ) : (
@@ -74,8 +74,8 @@ const TaskItemCard: React.FC<{ task: ShuffledTask; onStart: (task: ShuffledTask)
 );
 
 const SuccessModal: React.FC<{ points: number }> = ({ points }) => (
-    <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-[110] animate-fadeIn">
-        <div className="bg-white p-6 rounded-2xl shadow-lg max-w-xs w-11/12 relative animate-slideInUp text-center">
+    <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-[110]">
+        <div className="bg-white p-6 rounded-2xl shadow-lg max-w-xs w-11/12 relative text-center animate-fadeIn">
             <div className="w-20 h-20 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4 border-4 border-green-200">
                 <i className="fa-solid fa-check-circle text-green-500 text-4xl"></i>
             </div>
@@ -84,6 +84,10 @@ const SuccessModal: React.FC<{ points: number }> = ({ points }) => (
                 You earned <span className="font-bold text-[var(--success)]">{points}</span> points!
             </p>
         </div>
+        <style>{`
+            @keyframes fadeIn { from { opacity: 0; scale: 0.95; } to { opacity: 1; scale: 1; } }
+            .animate-fadeIn { animation: fadeIn 0.15s ease-out forwards; }
+        `}</style>
     </div>
 );
 
@@ -120,7 +124,7 @@ const BreakTimer: React.FC<{ endTime: Date; onBreakEnd: () => void }> = ({ endTi
             <p className="text-gray-600 mt-2">
                 Great job! Your next set of tasks will be available in:
             </p>
-            <p className="font-mono text-4xl font-bold text-[var(--dark)] my-4 bg-sky-100 p-3 rounded-lg tracking-wider">
+            <p className="font-mono text-3xl md:text-4xl font-bold text-[var(--dark)] my-4 bg-sky-100 p-3 rounded-lg tracking-wider">
                 {timeLeft}
             </p>
         </div>
@@ -155,18 +159,24 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
     const handleTaskSuccess = useCallback(async ({ taskId, points }: { taskId: number; points: number }) => {
         if (!dailyState) return;
 
+        // 1. CRITICAL: Unlock UI Immediately
+        setActiveTaskId(null);
+
         const completedTask = dailyState.tasks.find(t => t.id === taskId);
         if (!completedTask) return;
 
-        try {
-            // Trigger Reward Sound & Vibration
-            playSound(SOUNDS.SUCCESS, 0.8);
-            vibrate([100, 50, 100]);
+        const isInterstitial = completedTask.categoryIcon.includes('fa-rectangle-ad');
 
-            // Optimistic UI Update
+        try {
+            // 2. Trigger Feedback
+            if (isInterstitial) {
+                vibrate(200);
+            }
+            
+            // 3. Optimistic UI Update (Instant Modal)
             onEarnPoints(points, completedTask.title, completedTask.categoryIcon, completedTask.categoryIconColor);
             setSuccessInfo({ points });
-            setTimeout(() => setSuccessInfo(null), 1000);
+            setTimeout(() => setSuccessInfo(null), 3000); // Auto-hide modal after 3s
             
             setDailyState(prevState => {
                 if (!prevState) return null;
@@ -178,21 +188,17 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
                 };
             });
 
-            // Backend Sync
+            // 4. Backend Sync (Background)
             await completeTaskInService(userProfile.uid, taskId);
             
-            // Silent refresh to ensure sync
+            // Silent refresh
             const latestState = await getDailyTaskState(userProfile.uid);
             setDailyState(latestState);
 
         } catch (error: any) {
             console.error("Sync error:", error);
-            setErrorMessage("Error saving progress. Refreshing...");
-            await fetchAndProcessTasks();
-        } finally {
-            setActiveTaskId(null);
         }
-    }, [dailyState, userProfile.uid, onEarnPoints, fetchAndProcessTasks]);
+    }, [dailyState, userProfile.uid, onEarnPoints]);
 
     const { showTaskAd, cancelAd, isAdActive, timeLeft, isLoading: isAdLoading } = useTaskAd({
         onReward: handleTaskSuccess,
@@ -201,6 +207,20 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
             setErrorMessage(err.message || "Task failed. Please try again.");
             setTimeout(() => setErrorMessage(null), 3000);
             setActiveTaskId(null);
+        },
+        // Custom timing logic
+        onTick: (timeLeft, taskId) => {
+            const task = dailyState?.tasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            const isInterstitial = task.categoryIcon.includes('fa-rectangle-ad');
+
+            if (isInterstitial) {
+                if (timeLeft === 1) playSound(SOUNDS.SUCCESS, 0.8);
+            } else {
+                if (timeLeft === 2) playSound(SOUNDS.SUCCESS, 0.8);
+                if (timeLeft === 1) vibrate(200);
+            }
         }
     });
 
@@ -210,16 +230,11 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
         setActiveTaskId(task.id);
         setErrorMessage(null);
 
-        // Determine type based on icon
-        // fa-rectangle-ad = Interstitial (Strict, Telegram Required, Preload)
-        // fa-window-restore = Pop (Simple, No Strict Check)
         const isInterstitial = task.categoryIcon.includes('fa-rectangle-ad');
         const type = isInterstitial ? 'Interstitial' : 'Pop';
-
-        // Interstitial enforces 15s
-        // Pop uses task duration (variable)
-        const duration = isInterstitial ? 15 : task.duration;
-
+        
+        const duration = isInterstitial ? 16 : task.duration + 1;
+        
         showTaskAd(task.id, task.points, duration, type);
     };
     
@@ -241,7 +256,7 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
 
         if (dailyState && dailyState.tasks.length > 0) {
              return (
-                 <div className="space-y-3">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {dailyState.tasks.map(task => (
                         <TaskItemCard
                             key={task.id}
@@ -268,7 +283,7 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
     };
 
     return (
-        <div className="p-4 md:p-6 pb-24 text-[var(--dark)] min-h-full relative">
+        <div className="p-4 md:p-6 pb-24 text-[var(--dark)] h-full">
             {/* Success Modal */}
             {successInfo && <SuccessModal points={successInfo.points} />}
             
@@ -301,12 +316,11 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
                             className="bg-[var(--primary)] h-3 rounded-full transition-all duration-1000 linear" 
                             style={{ width: `${timeLeft > 0 ? 100 : 0}%`, transitionDuration: `${timeLeft}s` }}
                         ></div>
-                        {/* Note: CSS transition for width might need exact calculation logic for smooth bar, but simplified here */}
                     </div>
 
                     <button 
                         onClick={() => cancelAd(false)}
-                        className="px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-semibold hover:bg-red-50 hover:text-red-500 transition-colors flex items-center"
+                        className="px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-semibold hover:bg-red-50 hover:text-red-500 transition-colors flex items-center active:scale-95"
                     >
                         <i className="fa-solid fa-xmark mr-2"></i>
                         Cancel Task
@@ -321,33 +335,42 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
                 .animate-slideInUp { animation: slideInUp 0.3s ease-out forwards; }
             `}</style>
             
-            <div className="bg-white rounded-xl shadow-lg p-4 mb-3 border-l-4 border-[var(--primary)]">
-                <div className="flex items-center mb-3">
-                    <div className="flex-shrink-0 mr-4">
-                        <i className="fa-solid fa-list-check text-[var(--primary)] text-3xl"></i>
-                    </div>
-                    <div className="flex-grow">
-                        <h3 className="font-bold text-lg text-[var(--dark)]">Tasks</h3>
-                        <div className="flex items-center text-sm text-[var(--gray)] space-x-4 mt-1">
-                            <span>Completed: <span className="font-bold text-[var(--dark)]">{dailyState?.completedToday || 0}</span></span>
-                            <span>Tasks for today: <span className="font-bold text-[var(--dark)]">{dailyState?.totalForDay || 0}</span></span>
+            <div className="bg-white rounded-xl shadow-lg p-4 mb-6 border-l-4 border-[var(--primary)]">
+                <div className="flex justify-between items-center mb-4">
+                     <h3 className="font-bold text-lg text-[var(--dark)]">Tasks</h3>
+                     <button onClick={() => onNavigate('TaskHistory')} className="text-[var(--gray)] hover:text-[var(--dark)] transition-colors p-2">
+                        <i className="fa-solid fa-clock-rotate-left text-xl"></i>
+                    </button>
+                </div>
+                
+                <div className="flex items-center justify-between mb-3">
+                    {/* Left: Icon and Completed */}
+                    <div className="flex items-center">
+                        <div className="flex-shrink-0 mr-3">
+                            <i className="fa-solid fa-list-check text-[var(--primary)] text-3xl"></i>
+                        </div>
+                        <div>
+                            <p className="text-xs text-[var(--gray)]">Completed</p>
+                            <p className="font-bold text-2xl text-[var(--dark)]">{dailyState?.completedToday || 0}</p>
                         </div>
                     </div>
-                    <button onClick={() => onNavigate('TaskHistory')} className="text-[var(--gray)] hover:text-[var(--dark)] transition-colors text-2xl">
-                        <i className="fa-solid fa-clock-rotate-left"></i>
-                    </button>
+                    
+                    {/* Right: Daily and Available */}
+                    <div className="text-right">
+                         <div className="text-sm text-[var(--gray)] mb-1">
+                            Daily: <span className="font-bold text-[var(--dark)]">{dailyState?.totalForDay || 0}</span>
+                         </div>
+                         <div className="text-sm text-[var(--gray)]">
+                            Available: <span className="font-bold text-[var(--primary)]">{dailyState?.availableInBatch || 0}</span>
+                         </div>
+                    </div>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2.5">
                     <div className="bg-[var(--primary)] h-2.5 rounded-full transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div>
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-lg p-3 mb-6 text-center">
-                <p className="font-bold text-md text-[var(--dark)]">
-                    Available Tasks: <span className="text-[var(--primary)]">{dailyState?.availableInBatch || 0}</span>
-                </p>
-            </div>
-            
+            {/* Content rendering */}
             {renderContent()}
         </div>
     );

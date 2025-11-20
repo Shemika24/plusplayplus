@@ -141,6 +141,16 @@ export const createUserProfileDocument = async (userAuth: User, additionalData: 
                 directEarnings: 0,
                 commissionEarnings: 0,
             },
+            spinStats: {
+                lastDate: "",
+                count: 0,
+                wins: 0,
+                losses: 0
+            },
+            dailyCheckIn: {
+                lastDate: "",
+                streak: 0
+            },
             taskStats: {
                 completed: 0,
             },
@@ -181,6 +191,18 @@ export const getUserProfile = async (user: User): Promise<UserProfile | null> =>
             data.dyverzeId = generateDyverzeId();
             needsUpdate = true;
         }
+        // Spin Stats Migration
+        if (!data.spinStats) {
+            data.spinStats = { lastDate: "", count: 0, wins: 0, losses: 0 };
+            needsUpdate = true;
+        }
+        
+        // Daily Check-In Migration
+        if (!data.dailyCheckIn) {
+            data.dailyCheckIn = { lastDate: "", streak: 0 };
+            needsUpdate = true;
+        }
+
         // Migration from firstName/lastName to fullName
         if (!data.fullName && (data.firstName || data.lastName)) {
             data.fullName = `${data.firstName || ''} ${data.lastName || ''}`.trim();
@@ -253,6 +275,91 @@ export const addWithdrawalRequest = async (uid: string, withdrawalItem: Omit<Wit
     });
     batch.set(newHistoryDocRef, { ...withdrawalItem, timestamp: serverTimestamp() });
     await batch.commit();
+};
+
+export const claimDailyCheckIn = async (uid: string, reward: number, todayStr: string, newStreak: number): Promise<UserProfile> => {
+    const userDocRef = doc(db, "users", uid);
+
+    await runTransaction(db, async (transaction) => {
+        const userDoc = await transaction.get(userDocRef);
+        if (!userDoc.exists()) {
+            throw new Error("User does not exist!");
+        }
+
+        const data = userDoc.data() as UserProfile;
+        const currentCheckIn = data.dailyCheckIn || { lastDate: '', streak: 0 };
+
+        if (currentCheckIn.lastDate === todayStr) {
+             throw new Error("Already checked in today");
+        }
+
+        transaction.update(userDocRef, {
+            points: increment(reward),
+            dailyCheckIn: {
+                lastDate: todayStr,
+                streak: newStreak
+            }
+        });
+    });
+
+    const updatedSnapshot = await getDoc(userDocRef);
+    return updatedSnapshot.data() as UserProfile;
+};
+
+// --- NEW: Spin Wheel Transaction ---
+export const saveSpinResult = async (uid: string, pointsWon: number, currentDateStr: string): Promise<UserProfile> => {
+    const userDocRef = doc(db, "users", uid);
+
+    try {
+        await runTransaction(db, async (transaction) => {
+            const userDoc = await transaction.get(userDocRef);
+            if (!userDoc.exists()) {
+                throw new Error("User does not exist!");
+            }
+
+            const data = userDoc.data() as UserProfile;
+            const currentStats = data.spinStats || { lastDate: '', count: 0, wins: 0, losses: 0 };
+
+            // Check date logic
+            let newCount = currentStats.count;
+            let newWins = currentStats.wins;
+            let newLosses = currentStats.losses;
+
+            if (currentStats.lastDate !== currentDateStr) {
+                // New Day
+                newCount = 1;
+                newWins = pointsWon > 0 ? 1 : 0;
+                newLosses = pointsWon === 0 ? 1 : 0;
+            } else {
+                // Same Day
+                if (newCount >= 10) {
+                    throw new Error("Daily spin limit (10) reached.");
+                }
+                newCount += 1;
+                if (pointsWon > 0) newWins += 1;
+                else newLosses += 1;
+            }
+
+            // Update User
+            transaction.update(userDocRef, {
+                points: increment(pointsWon),
+                spinStats: {
+                    lastDate: currentDateStr,
+                    count: newCount,
+                    wins: newWins,
+                    losses: newLosses
+                }
+            });
+        });
+
+        // Return fresh data
+        const updatedSnapshot = await getDoc(userDocRef);
+        return updatedSnapshot.data() as UserProfile;
+
+    } catch (e) {
+        console.error("Spin transaction failed:", e);
+        throw e;
+    }
 };
 
 export const deleteUserData = async (uid: string): Promise<void> => {

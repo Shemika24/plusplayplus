@@ -19,7 +19,7 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ userProfile, onWithdrawClic
     const { directEarnings, commissionEarnings } = userProfile.referrals;
 
     return (
-        <div className="p-4 md:p-6 pb-24 text-[var(--dark)] space-y-6">
+        <div className="p-4 md:p-6 text-[var(--dark)] space-y-6">
             {/* Balance Card - Modified */}
             <div className="bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] rounded-2xl shadow-xl p-5 text-white">
                 <div className="flex justify-between items-center">
@@ -29,7 +29,7 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ userProfile, onWithdrawClic
                         <p className="text-sm opacity-80 mt-1">{points.toLocaleString()} Points</p>
                     </div>
                     <div>
-                         <button onClick={onWithdrawClick} className="flex items-center justify-center px-4 py-2 bg-white text-[var(--primary)] font-bold rounded-lg shadow-md hover:bg-gray-100 transition-all duration-300 transform hover:scale-105">
+                         <button onClick={onWithdrawClick} className="flex items-center justify-center px-4 py-2 bg-white text-[var(--primary)] font-bold rounded-lg shadow-md hover:bg-gray-100 transition-all duration-300 transform active:scale-95">
                             <i className="fa-solid fa-money-bill-transfer mr-2"></i>
                             <span>Withdraw</span>
                         </button>
@@ -38,15 +38,15 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ userProfile, onWithdrawClic
             </div>
             
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {/* Pending Withdrawals Card */}
                 <div className="bg-gradient-to-br from-amber-400 to-orange-500 p-4 rounded-xl text-white shadow-lg">
                     <div className="flex items-center text-white/90 mb-1">
                         <i className="fa-solid fa-hourglass-half"></i>
                         <span className="font-semibold text-sm ml-2">Pending</span>
                     </div>
-                    <p className="text-2xl font-bold">${pendingWithdrawals.toFixed(2)}</p>
-                    {pendingWithdrawals === 0 && <p className="text-xs opacity-80">No pending withdrawals</p>}
+                    <p className="text-xl md:text-2xl font-bold">${pendingWithdrawals.toFixed(2)}</p>
+                    {pendingWithdrawals === 0 && <p className="text-[10px] md:text-xs opacity-80">No pending withdrawals</p>}
                 </div>
 
                 {/* Total Withdrawn Card */}
@@ -55,26 +55,40 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ userProfile, onWithdrawClic
                         <i className="fa-solid fa-check-circle"></i>
                         <span className="font-semibold text-sm ml-2">Withdrawn</span>
                     </div>
-                    <p className="text-2xl font-bold">${totalWithdrawn.toFixed(2)}</p>
+                    <p className="text-xl md:text-2xl font-bold">${totalWithdrawn.toFixed(2)}</p>
+                </div>
+
+                {/* Direct Referral Card (For larger screens split) */}
+                 <div className="bg-white p-4 rounded-xl shadow-lg border-l-4 border-teal-500 md:col-span-1 col-span-1">
+                    <div className="flex items-center text-gray-500 mb-1">
+                        <i className="fa-solid fa-user-plus"></i>
+                        <span className="font-semibold text-xs ml-2">Ref. Direct</span>
+                    </div>
+                    <p className="text-lg font-bold text-teal-600">${directEarnings.toFixed(2)}</p>
+                </div>
+
+                 {/* Commission Card */}
+                 <div className="bg-white p-4 rounded-xl shadow-lg border-l-4 border-teal-500 md:col-span-1 col-span-1">
+                    <div className="flex items-center text-gray-500 mb-1">
+                        <i className="fa-solid fa-percent"></i>
+                        <span className="font-semibold text-xs ml-2">Ref. Comm.</span>
+                    </div>
+                    <p className="text-lg font-bold text-teal-600">${commissionEarnings.toFixed(2)}</p>
                 </div>
             </div>
 
-             {/* Referral Earnings */}
-             <div className="bg-white rounded-xl shadow-lg p-4">
+             {/* Referral Earnings Summary (Mobile only view usually, but adapted above) */}
+             <div className="bg-white rounded-xl shadow-lg p-4 md:hidden">
                  <div className="flex items-center mb-4">
                     <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mr-4">
-                         <i className="fa-solid fa-user-plus text-teal-500 text-xl"></i>
+                         <i className="fa-solid fa-users text-teal-500 text-xl"></i>
                     </div>
-                    <h3 className="text-lg font-bold text-[var(--dark)]">Referral Earnings</h3>
+                    <h3 className="text-lg font-bold text-[var(--dark)]">Referral Summary</h3>
                  </div>
                  <div className="flex justify-around text-center">
                     <div>
-                        <p className="text-sm text-[var(--gray)]">Direct Bonus</p>
-                        <p className="text-xl font-bold text-teal-600">${directEarnings.toFixed(2)}</p>
-                    </div>
-                    <div>
-                        <p className="text-sm text-[var(--gray)]">Commissions</p>
-                        <p className="text-xl font-bold text-teal-600">${commissionEarnings.toFixed(2)}</p>
+                        <p className="text-sm text-[var(--gray)]">Total Earned</p>
+                        <p className="text-xl font-bold text-teal-600">${(directEarnings + commissionEarnings).toFixed(2)}</p>
                     </div>
                  </div>
              </div>
@@ -82,7 +96,7 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ userProfile, onWithdrawClic
              {/* Withdrawal History */}
              <button 
                 onClick={onHistoryClick}
-                className="w-full bg-white rounded-xl shadow-lg p-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors">
+                className="w-full bg-white rounded-xl shadow-lg p-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors active:scale-[0.99]">
                 <div>
                     <h3 className="font-bold text-lg text-[var(--dark)]">Withdrawal History</h3>
                     <p className="text-sm text-[var(--gray)] mt-1">View all your past withdrawal requests.</p>

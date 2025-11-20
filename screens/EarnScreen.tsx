@@ -4,11 +4,14 @@ import DailyCheckinModal from '../components/modals/DailyCheckinModal';
 import LuckyWheelModal from '../components/modals/LuckyWheelModal';
 import DailyComboModal from '../components/modals/DailyComboModal';
 import Modal from '../components/Modal';
-import { SpinWheelState } from '../types';
+import { SpinWheelState, UserProfile } from '../types';
+import { saveSpinResult, getUserProfile } from '../services/firestoreService';
+import { getAuth } from 'firebase/auth';
 
 interface EarnScreenProps {
     onNavigateToReferrals: () => void;
     onEarnPoints: (points: number, title: string, icon: string, iconColor: string) => void;
+    userProfile?: UserProfile;
 }
 
 // Define the structure for an earning option
@@ -61,15 +64,15 @@ const earnOptions: EarnOption[] = [
 
 // Reusable card component for grid items
 const EarnCard: React.FC<{ option: EarnOption; onClick: () => void; }> = ({ option, onClick }) => (
-    <button onClick={onClick} className="bg-white rounded-xl shadow-lg p-4 text-center flex flex-col items-center justify-center transform hover:scale-105 transition-transform duration-300 h-full">
-        <i className={`${option.icon} ${option.iconColor} text-3xl mb-3`}></i>
-        <h3 className="font-bold text-md text-[var(--dark)]">{option.title}</h3>
+    <button onClick={onClick} className="bg-white rounded-xl shadow-lg p-4 text-center flex flex-col items-center justify-center transform active:scale-95 hover:scale-105 transition-transform duration-200 h-full min-h-[140px]">
+        <i className={`${option.icon} ${option.iconColor} text-3xl md:text-4xl mb-3`}></i>
+        <h3 className="font-bold text-sm md:text-base text-[var(--dark)]">{option.title}</h3>
         <p className="text-xs text-[var(--gray)] mt-1 flex-grow">{option.subtitle}</p>
     </button>
 );
 
 
-const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigateToReferrals, onEarnPoints }) => {
+const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigateToReferrals, onEarnPoints, userProfile }) => {
     // Modal states
     const [isDailyCheckinOpen, setDailyCheckinOpen] = useState(false);
     const [isLuckyWheelOpen, setLuckyWheelOpen] = useState(false);
@@ -84,6 +87,45 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigateToReferrals, onEarnPo
         winsToday: 0,
         lossesToday: 0,
     });
+
+    const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile | null>(null);
+
+    // --- Fetch User Profile for Sync ---
+    const fetchUserData = async () => {
+        const auth = getAuth();
+        if (auth.currentUser) {
+            const profile = await getUserProfile(auth.currentUser);
+            if (profile) {
+                setCurrentUserProfile(profile);
+                
+                // Check Date Logic for Spins
+                const todayStr = new Date().toLocaleDateString();
+                if (profile.spinStats && profile.spinStats.lastDate === todayStr) {
+                    setSpinWheelState({
+                        spinsToday: profile.spinStats.count,
+                        winsToday: profile.spinStats.wins,
+                        lossesToday: profile.spinStats.losses,
+                    });
+                } else {
+                    // Reset if date is different (visual reset, backend handles actual logic)
+                    setSpinWheelState({
+                        spinsToday: 0,
+                        winsToday: 0,
+                        lossesToday: 0,
+                    });
+                }
+            }
+        }
+    };
+
+    useEffect(() => {
+        // Prefer prop profile, else fetch
+        if (userProfile) {
+            setCurrentUserProfile(userProfile);
+        } else {
+            fetchUserData();
+        }
+    }, [userProfile, isLuckyWheelOpen]); // Refresh when modal opens/closes
 
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
@@ -124,7 +166,7 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigateToReferrals, onEarnPo
         if (title === 'Daily Check-in') {
             setDailyCheckinOpen(true);
         } else if (title === 'Lucky Wheel') {
-            setLuckyWheelOpen(true);
+            fetchUserData().then(() => setLuckyWheelOpen(true));
         } else if (title === 'Special Offers') {
             setDailyComboOpen(true);
         } else if (title === 'Invite Friends') {
@@ -132,19 +174,32 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigateToReferrals, onEarnPo
         }
     };
     
-    const handleSpinComplete = (prize: number | string) => {
-        setSpinWheelState(prevState => {
-            const isWin = typeof prize === 'number';
-            return {
-                spinsToday: prevState.spinsToday + 1,
-                winsToday: isWin ? prevState.winsToday + 1 : prevState.winsToday,
-                lossesToday: !isWin ? prevState.lossesToday + 1 : prevState.lossesToday,
-            };
-        });
-        if (typeof prize === 'number') {
-            onEarnPoints(prize, 'Lucky Wheel Win', 'fa-solid fa-dharmachakra', 'text-purple-500');
-        } else {
-            console.log('User did not win this time.');
+    const handleSpinComplete = async (prize: number | string) => {
+        const auth = getAuth();
+        if (!auth.currentUser) return;
+
+        const points = typeof prize === 'number' ? prize : 0;
+        const todayStr = new Date().toLocaleDateString();
+
+        // Optimistic Update
+        setSpinWheelState(prevState => ({
+            spinsToday: prevState.spinsToday + 1,
+            winsToday: points > 0 ? prevState.winsToday + 1 : prevState.winsToday,
+            lossesToday: points === 0 ? prevState.lossesToday + 1 : prevState.lossesToday,
+        }));
+
+        try {
+            // Persist to Firestore
+            const updatedProfile = await saveSpinResult(auth.currentUser.uid, points, todayStr);
+            setCurrentUserProfile(updatedProfile); // Update local profile with server result
+            
+            if (points > 0) {
+                onEarnPoints(points, 'Lucky Wheel Win', 'fa-solid fa-dharmachakra', 'text-purple-500');
+            }
+        } catch (error) {
+            console.error("Failed to save spin:", error);
+            // Revert optimistic update or show error
+            fetchUserData(); // Sync back with server
         }
     };
 
@@ -152,13 +207,13 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigateToReferrals, onEarnPo
         <div className="flex flex-col h-full p-4 md:p-6 pb-24 text-[var(--dark)]">
             <h2 className="text-xl font-bold text-[var(--dark)] mb-4 px-2 flex-shrink-0">Explore &amp; Earn</h2>
             
-            <div className="grid grid-cols-2 gap-4 flex-grow">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 flex-grow auto-rows-min">
                 {earnOptions.map((option) => (
                     <EarnCard key={option.title} option={option} onClick={() => handleCardClick(option.title)} />
                 ))}
             </div>
 
-            <div className="bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] text-white rounded-xl shadow-xl p-4 text-center flex-shrink-0 mt-4">
+            <div className="bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] text-white rounded-xl shadow-xl p-4 text-center flex-shrink-0 mt-4 md:mt-6">
                  <div className="flex items-center justify-center mb-2">
                     <i className="fa-solid fa-fire text-yellow-300 text-lg mr-2"></i>
                     <h3 className="font-extrabold text-md">Unique Offer!</h3>
@@ -178,7 +233,11 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigateToReferrals, onEarnPo
                 onClose={() => setDailyCheckinOpen(false)}
                 title="Daily Check-in"
             >
-                <DailyCheckinModal onClose={() => setDailyCheckinOpen(false)} onEarnPoints={onEarnPoints} />
+                <DailyCheckinModal 
+                    onClose={() => setDailyCheckinOpen(false)} 
+                    onEarnPoints={onEarnPoints} 
+                    userProfile={currentUserProfile || undefined}
+                />
             </Modal>
 
             <LuckyWheelModal

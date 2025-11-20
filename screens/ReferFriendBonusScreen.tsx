@@ -29,8 +29,8 @@ const rewardTiers: RewardTier[] = [
 
 
 const CircularProgress: React.FC<{ progress: number }> = ({ progress }) => {
-    const radius = 55; // Increased from 45 for a larger circle
-    const stroke = 8;
+    const radius = 50; // Slightly smaller for better mobile fit
+    const stroke = 6;
     const normalizedRadius = radius - stroke * 2;
     const circumference = normalizedRadius * 2 * Math.PI;
     const strokeDashoffset = circumference - (progress / 100) * circumference;
@@ -49,7 +49,7 @@ const CircularProgress: React.FC<{ progress: number }> = ({ progress }) => {
                 </linearGradient>
             </defs>
             <circle
-                stroke="rgba(255, 255, 255, 0.2)" // Increased opacity for better visibility on new background
+                stroke="rgba(255, 255, 255, 0.2)" 
                 fill="transparent"
                 strokeWidth={stroke}
                 r={normalizedRadius}
@@ -78,25 +78,25 @@ const RewardCard: React.FC<{ tier: RewardTier; currentInvites: number; isClaimed
         <button 
             onClick={() => onClaim(tier)}
             disabled={!isClaimable}
-            className={`bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] rounded-2xl p-4 text-center text-white flex flex-col items-center shadow-lg relative transition-transform duration-300
+            className={`bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] rounded-2xl p-3 text-center text-white flex flex-col items-center shadow-lg relative transition-transform duration-300 w-full
                 ${isClaimable ? 'cursor-pointer hover:scale-105' : 'cursor-not-allowed'}
             `}
         >
-            <i className="fa-solid fa-key absolute top-3 right-3 text-white/50 text-sm"></i>
-            <div className="relative w-[110px] h-[110px] flex items-center justify-center my-2">
+            <i className="fa-solid fa-key absolute top-3 right-3 text-white/50 text-xs md:text-sm"></i>
+            <div className="relative w-[100px] h-[100px] flex items-center justify-center my-2">
                 <CircularProgress progress={progress} />
                 <div className="absolute flex flex-col items-center justify-center">
-                    <span className="text-2xl font-bold">${tier.reward.toLocaleString()}</span>
+                    <span className="text-xl md:text-2xl font-bold">${tier.reward.toLocaleString()}</span>
                 </div>
             </div>
-            <p className="font-semibold text-sm mt-2">
-                {tier.invites >= 20000 ? `${tier.invites.toLocaleString()}+` : tier.invites.toLocaleString()} invites to unlock
+            <p className="font-semibold text-xs md:text-sm mt-2">
+                {tier.invites >= 20000 ? `${tier.invites.toLocaleString()}+` : tier.invites.toLocaleString()} invites
             </p>
-            <p className="text-xs text-white/70">({tier.days} active days)</p>
+            <p className="text-[10px] md:text-xs text-white/70">({tier.days} active days)</p>
             
             {isClaimed && (
                 <div className="absolute inset-0 bg-black/60 rounded-2xl flex items-center justify-center">
-                    <i className="fa-solid fa-check text-white text-5xl"></i>
+                    <i className="fa-solid fa-check text-white text-4xl md:text-5xl"></i>
                 </div>
             )}
         </button>
@@ -128,7 +128,8 @@ const ReferFriendBonusScreen: React.FC<ReferFriendBonusScreenProps> = ({ userPro
                 </h1>
             </div>
             <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-24">
-                <div className="grid grid-cols-2 gap-4">
+                {/* Adjusted Grid for smaller screens */}
+                <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-3">
                     {rewardTiers.map(tier => (
                         <RewardCard 
                             key={tier.reward} 
@@ -142,7 +143,7 @@ const ReferFriendBonusScreen: React.FC<ReferFriendBonusScreenProps> = ({ userPro
                 <div className="mt-6">
                     <button
                         onClick={onNavigateToReferrals}
-                        className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-sky-500/30 transition-all hover:scale-105 hover:brightness-110 active:scale-100"
+                        className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-sky-500/30 transition-all hover:scale-[1.02] hover:brightness-110 active:scale-95"
                     >
                         <i className="fa-solid fa-user-plus mr-2"></i>
                         Invite Friends Now

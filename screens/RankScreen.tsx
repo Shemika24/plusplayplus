@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { RankedUser, UserProfile } from '../types';
 import { getRankings } from '../services/firestoreService';
@@ -9,19 +8,19 @@ interface RankScreenProps {
 }
 
 const TopRankerCard: React.FC<{ user: RankedUser, medalColor: string, icon: string, sizeClass: string }> = ({ user, medalColor, icon, sizeClass }) => (
-    <div className={`flex flex-col items-center relative ${sizeClass}`}>
-        <div className={`absolute -top-3 w-8 h-8 rounded-full flex items-center justify-center text-white text-lg shadow-md ${medalColor}`}>
+    <div className={`flex flex-col items-center relative ${sizeClass} transform transition-transform`}>
+        <div className={`absolute -top-3 w-8 h-8 rounded-full flex items-center justify-center text-white text-lg shadow-md ${medalColor} z-10`}>
             <i className={`fa-solid ${icon}`}></i>
         </div>
         {user.avatar ? (
-            <img src={user.avatar} alt={user.name} className="w-20 h-20 rounded-full border-4 border-white shadow-lg mb-2 bg-gray-300 object-cover" />
+            <img src={user.avatar} alt={user.name} className="w-16 h-16 md:w-20 md:h-20 rounded-full border-4 border-white shadow-lg mb-2 bg-gray-300 object-cover" />
         ) : (
-             <div className="w-20 h-20 rounded-full border-4 border-white shadow-lg mb-2 bg-gray-300 flex items-center justify-center">
-                <i className="fa-solid fa-user text-4xl text-gray-500"></i>
+             <div className="w-16 h-16 md:w-20 md:h-20 rounded-full border-4 border-white shadow-lg mb-2 bg-gray-300 flex items-center justify-center">
+                <i className="fa-solid fa-user text-3xl md:text-4xl text-gray-500"></i>
             </div>
         )}
-        <p className="font-bold text-white text-sm text-center">{user.name}</p>
-        <p className="font-bold text-yellow-300 text-lg">{user.points.toLocaleString()}</p>
+        <p className="font-bold text-white text-xs md:text-sm text-center max-w-[80px] truncate">{user.name}</p>
+        <p className="font-bold text-yellow-300 text-sm md:text-lg">{user.points.toLocaleString()}</p>
     </div>
 );
 
@@ -35,8 +34,8 @@ const RankListItem: React.FC<{ user: RankedUser }> = ({ user }) => (
                 <i className="fa-solid fa-user text-xl text-white"></i>
             </div>
         )}
-        <p className="flex-grow font-semibold text-gray-800">{user.name}</p>
-        <p className="font-bold text-blue-600">{user.points.toLocaleString()} pts</p>
+        <p className="flex-grow font-semibold text-gray-800 text-sm md:text-base truncate">{user.name}</p>
+        <p className="font-bold text-blue-600 text-sm md:text-base whitespace-nowrap">{user.points.toLocaleString()} pts</p>
     </div>
 );
 
@@ -59,21 +58,21 @@ const RankScreen: React.FC<RankScreenProps> = ({ currentUserProfile }) => {
     const others = rankings.slice(3);
 
     return (
-        <div className="pb-24 text-[var(--dark)] min-h-full">
+        <div className="pb-24 text-[var(--dark)] min-h-full flex flex-col">
             {/* Top 3 Podium */}
-            <div className="bg-gradient-to-b from-[#4a6bff] to-[#3a5bef] p-6 pt-10 rounded-b-3xl shadow-lg">
+            <div className="bg-gradient-to-b from-[#4a6bff] to-[#3a5bef] p-6 pt-10 rounded-b-3xl shadow-lg flex-shrink-0">
                 <h2 className="text-2xl font-bold text-white text-center mb-6">Top Earners</h2>
-                <div className="flex justify-center items-end space-x-4 h-40">
+                <div className="flex justify-center items-end space-x-2 md:space-x-4 h-40">
                     {isLoading ? (
                         <div className="w-full flex justify-around items-end">
-                            <div className="w-20 h-28 bg-white/20 rounded-t-lg animate-pulse"></div>
-                            <div className="w-20 h-36 bg-white/20 rounded-t-lg animate-pulse"></div>
-                            <div className="w-20 h-28 bg-white/20 rounded-t-lg animate-pulse"></div>
+                            <div className="w-16 md:w-20 h-24 md:h-28 bg-white/20 rounded-t-lg animate-pulse"></div>
+                            <div className="w-16 md:w-20 h-32 md:h-36 bg-white/20 rounded-t-lg animate-pulse"></div>
+                            <div className="w-16 md:w-20 h-24 md:h-28 bg-white/20 rounded-t-lg animate-pulse"></div>
                         </div>
                     ) : (
                         <>
                             {topThree.length > 1 && <TopRankerCard user={topThree[1]} medalColor="bg-slate-400" icon="fa-medal" sizeClass="order-2" />}
-                            {topThree.length > 0 && <TopRankerCard user={topThree[0]} medalColor="bg-yellow-400" icon="fa-trophy" sizeClass="order-1 scale-110 mb-4" />}
+                            {topThree.length > 0 && <TopRankerCard user={topThree[0]} medalColor="bg-yellow-400" icon="fa-trophy" sizeClass="order-1 scale-110 mb-4 z-10" />}
                             {topThree.length > 2 && <TopRankerCard user={topThree[2]} medalColor="bg-orange-400" icon="fa-medal" sizeClass="order-3" />}
                         </>
                     )}
@@ -81,7 +80,7 @@ const RankScreen: React.FC<RankScreenProps> = ({ currentUserProfile }) => {
             </div>
 
             {/* Rest of the list */}
-            <div className="p-4 space-y-3">
+            <div className="p-4 space-y-3 flex-1">
                  {isLoading ? (
                     Array.from({length: 5}).map((_, i) => (
                         <div key={i} className="flex items-center p-3 rounded-lg bg-white animate-pulse">

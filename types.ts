@@ -1,3 +1,4 @@
+
 export interface SpinWheelState {
     spinsToday: number;
     winsToday: number;
@@ -60,6 +61,19 @@ export interface UserProfile {
         activeCount: number;
         directEarnings: number;
         commissionEarnings: number;
+    };
+
+    // Daily Limits & Stats
+    spinStats?: {
+        lastDate: string; // "YYYY-MM-DD" based on user locale
+        count: number;
+        wins: number;
+        losses: number;
+    };
+    
+    dailyCheckIn?: {
+        lastDate: string; // "YYYY-MM-DD"
+        streak: number;
     };
 
     // Aggregate stats for performance
