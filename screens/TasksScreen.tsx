@@ -1,13 +1,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Screen, Task, UserProfile } from '../types';
+import { Screen, Task, UserProfile, TaskHistory } from '../types';
 import { getDailyTaskState, completeTask as completeTaskInService } from '../services/firestoreService';
 import { useTaskAd } from '../hooks/useTaskAd';
 import { playSound, vibrate, SOUNDS } from '../utils/sound';
 
 interface TasksScreenProps {
   onNavigate: (screen: Screen) => void;
-  onEarnPoints: (points: number, title: string, icon: string, iconColor: string) => void;
+  onEarnPoints: (points: number, title: string, icon: string, iconColor: string, skipDbSave?: boolean) => void;
   userProfile: UserProfile;
 }
 
@@ -157,40 +157,47 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
 
     const handleTaskSuccess = useCallback(async ({ taskId, points }: { taskId: number; points: number }) => {
         if (!dailyState) return;
+        
+        // --- CRITICAL UPDATE: Immediate Feedback ---
+        // Play sound and vibrate immediately when the task timer completes.
+        // This ensures feedback happens exactly when the task finishes, regardless of API latency.
+        playSound(SOUNDS.SUCCESS, 1.0);
+        vibrate(500); // Single strong vibration for completion
 
         setActiveTaskId(null);
 
         const completedTask = dailyState.tasks.find(t => t.id === taskId);
         if (!completedTask) return;
 
-        const isInterstitial = completedTask.categoryIcon.includes('fa-rectangle-ad');
-
         try {
-            if (isInterstitial) {
-                vibrate(200);
-            }
+            // 1. Perform Atomic Transaction on Firestore
+            // Create history item object to pass to service
+            const historyItem: Omit<TaskHistory, 'id' | 'timestamp'> = {
+                reward: points,
+                title: completedTask.title,
+                icon: completedTask.categoryIcon,
+                iconColor: completedTask.categoryIconColor,
+                date: new Date().toLocaleDateString("en-US", { timeZone: "Africa/Maputo" }),
+            };
+
+            await completeTaskInService(userProfile.uid, taskId, points, historyItem);
             
-            onEarnPoints(points, completedTask.title, completedTask.categoryIcon, completedTask.categoryIconColor);
+            // 2. Only after success, update UI Local State
+            // Skip DB save in onEarnPoints because completeTaskInService already handled it
+            onEarnPoints(points, completedTask.title, completedTask.categoryIcon, completedTask.categoryIconColor, true);
+            
+            // 3. Show Reward Modal after the sound and processing
             setSuccessInfo({ points });
             setTimeout(() => setSuccessInfo(null), 3000);
             
-            setDailyState(prevState => {
-                if (!prevState) return null;
-                return {
-                    ...prevState,
-                    tasks: prevState.tasks.filter(t => t.id !== taskId),
-                    completedToday: prevState.completedToday + 1,
-                    availableInBatch: Math.max(0, prevState.availableInBatch - 1),
-                };
-            });
-
-            await completeTaskInService(userProfile.uid, taskId);
-            
+            // 4. Fetch latest state to ensure sync
             const latestState = await getDailyTaskState(userProfile.uid);
             setDailyState(latestState);
 
         } catch (error: any) {
             console.error("Sync error:", error);
+            setErrorMessage("Network error. Points were not saved. Please try again.");
+            setTimeout(() => setErrorMessage(null), 4000);
         }
     }, [dailyState, userProfile.uid, onEarnPoints]);
 
@@ -201,20 +208,8 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
             setErrorMessage(err.message || "Task failed. Please try again.");
             setTimeout(() => setErrorMessage(null), 3000);
             setActiveTaskId(null);
-        },
-        onTick: (timeLeft, taskId) => {
-            const task = dailyState?.tasks.find(t => t.id === taskId);
-            if (!task) return;
-            
-            const isInterstitial = task.categoryIcon.includes('fa-rectangle-ad');
-
-            if (isInterstitial) {
-                if (timeLeft === 1) playSound(SOUNDS.SUCCESS, 0.8);
-            } else {
-                if (timeLeft === 2) playSound(SOUNDS.SUCCESS, 0.8);
-                if (timeLeft === 1) vibrate(200);
-            }
         }
+        // onTick removed to prevent inaccurate timing feedback. Feedback is now in handleTaskSuccess.
     });
 
     const handleStartTask = async (task: ShuffledTask) => {
@@ -285,34 +280,25 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
                 </div>
             )}
 
-            {isAdActive && (
-                <div className="fixed inset-0 z-[200] bg-[var(--bg-card)] flex flex-col items-center justify-center p-6 animate-fadeIn">
+            {(isAdActive || isAdLoading) && (
+                <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 animate-fadeIn select-none">
                     <div className="w-20 h-20 mb-6 relative flex items-center justify-center">
-                        <svg className="animate-spin h-full w-full text-[var(--primary)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <svg className="animate-spin h-full w-full text-white/30" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <span className="absolute font-bold text-2xl text-[var(--dark)]">{timeLeft}</span>
+                        {isAdActive && <span className="absolute font-bold text-2xl text-white">{timeLeft}</span>}
                     </div>
                     
-                    <h2 className="text-2xl font-bold text-[var(--dark)] mb-2">Checking Ad...</h2>
-                    <p className="text-center text-[var(--gray)] mb-8 max-w-xs">
-                        Please verify the ad content. Do not close the window until the timer finishes.
+                    <p className="text-white/90 font-medium text-lg animate-pulse">
+                        {isAdLoading ? "Opening..." : "Verifying..."}
                     </p>
-
-                    <div className="w-full max-w-xs bg-[var(--bg-input)] rounded-full h-3 mb-8">
-                        <div 
-                            className="bg-[var(--primary)] h-3 rounded-full transition-all duration-1000 linear" 
-                            style={{ width: `${timeLeft > 0 ? 100 : 0}%`, transitionDuration: `${timeLeft}s` }}
-                        ></div>
-                    </div>
 
                     <button 
                         onClick={() => cancelAd(false)}
-                        className="px-6 py-3 bg-[var(--bg-input)] text-[var(--text-secondary)] rounded-xl font-semibold hover:bg-red-50 hover:text-red-500 transition-colors flex items-center"
+                        className="mt-12 px-6 py-2 rounded-full border border-white/20 text-white/60 hover:bg-white/10 hover:text-white transition-all text-sm"
                     >
-                        <i className="fa-solid fa-xmark mr-2"></i>
-                        Cancel Task
+                        Cancel
                     </button>
                 </div>
             )}

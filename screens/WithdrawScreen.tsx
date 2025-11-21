@@ -207,7 +207,7 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
                         <div className="bg-[var(--bg-card)] p-4 rounded-xl shadow-lg flex justify-between items-center border border-[var(--border-color)]">
                             <div>
                                 <p className="text-sm text-[var(--gray)]">Available Balance</p>
-                                <p className="text-2xl font-bold text-[var(--dark)]">${balance.toFixed(6)}</p>
+                                <p className="text-2xl font-bold text-[var(--dark)]">${balance.toFixed(2)}</p>
                             </div>
                             <i className="fa-solid fa-wallet text-3xl text-[var(--primary)]"></i>
                         </div>

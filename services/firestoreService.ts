@@ -141,7 +141,6 @@ export const createUserProfileDocument = async (userAuth: User, additionalData: 
             username,
             dyverzeId: generateDyverzeId(),
             points: 0,
-            language: 'en', // Default language
             theme: 'light',
             avatarUrl: avatarUrl || "",
             bio: "",
@@ -208,15 +207,15 @@ export const getUserProfile = async (user: User): Promise<UserProfile | null> =>
         const data = userDocSnap.data() as any; // Use any for migration
         let needsUpdate = false;
 
-        // Language Migration
-        if (!data.language) {
-            data.language = 'en';
-            needsUpdate = true;
-        }
-
         // Theme Migration
         if (!data.theme) {
             data.theme = 'light';
+            needsUpdate = true;
+        }
+        
+        // Remove Language if exists
+        if (data.language) {
+            delete data.language;
             needsUpdate = true;
         }
 
@@ -446,10 +445,29 @@ export const saveSpinResult = async (uid: string, pointsWon: number, currentDate
 };
 
 export const deleteUserData = async (uid: string): Promise<void> => {
-    // This function deletes the user's main document and their daily state.
-    // Deleting subcollections on the client is not recommended for production apps without recursion.
-    // Here we simplify by deleting the main docs.
     try {
+        // 1. Delete Subcollections (Recursively delete in batches)
+        const subcollections = ["taskHistory", "withdrawalHistory", "notifications"];
+        
+        for (const subCol of subcollections) {
+            const subColRef = collection(db, "users", uid, subCol);
+            
+            while (true) {
+                // Get batch of 500 documents
+                const q = query(subColRef, limit(500));
+                const snapshot = await getDocs(q);
+                
+                if (snapshot.empty) break;
+
+                const batch = writeBatch(db);
+                snapshot.docs.forEach((doc) => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+            }
+        }
+
+        // 2. Delete Main Documents
         const userDocRef = doc(db, "users", uid);
         const dailyStateDocRef = doc(db, "user_daily_states", uid);
 
@@ -645,20 +663,31 @@ export const getDailyTaskState = async (uid: string) => {
     };
 };
 
-export const completeTask = async (uid: string, taskId: number): Promise<void> => {
+// CRITICAL UPDATE: Atomic Transaction for Task Completion + Point Increment
+export const completeTask = async (uid: string, taskId: number, points: number, historyItem: Omit<TaskHistory, 'id' | 'timestamp'>): Promise<void> => {
     const taskDocRef = getTaskStateDocRef(uid);
+    const userDocRef = doc(db, "users", uid);
+    const historyCollectionRef = collection(db, "users", uid, "taskHistory");
+    const newHistoryDocRef = doc(historyCollectionRef);
 
     await runTransaction(db, async (transaction) => {
         const stateDoc = await transaction.get(taskDocRef);
+        const userDoc = await transaction.get(userDocRef);
+
         if (!stateDoc.exists()) {
             throw new Error("Daily task state not found. Please refresh.");
+        }
+        if (!userDoc.exists()) {
+             throw new Error("User Profile not found.");
         }
         
         const state = stateDoc.data() as UserDailyState;
         
+        // 1. Verify Task is in Current Batch
         const taskToComplete = state.currentBatch.find(task => task.id === taskId);
         const newBatch = state.currentBatch.filter(task => task.id !== taskId);
         
+        // If task is found and removed successfully
         if (newBatch.length < state.currentBatch.length && taskToComplete) {
             const updatedState: Partial<UserDailyState> = {
                 completedToday: state.completedToday + 1,
@@ -674,88 +703,82 @@ export const completeTask = async (uid: string, taskId: number): Promise<void> =
                 updatedState.breakEndTime = Timestamp.fromDate(breakEndTime);
             }
             
+            // 2. Perform All Writes Atomically
             transaction.update(taskDocRef, updatedState);
+            
+            transaction.update(userDocRef, {
+                points: increment(points),
+                'taskStats.completed': increment(1)
+            });
+
+            transaction.set(newHistoryDocRef, {
+                ...historyItem,
+                timestamp: serverTimestamp()
+            });
 
         } else {
              console.warn(`Task with ID ${taskId} not found in current batch. Might be a refresh mismatch.`);
+             // We do NOT throw here to avoid crashing the UI if user doubled clicked, but we don't award points either.
         }
     });
 };
 
-
-// ===================================================================================
-// RANKING FUNCTIONS
-// ===================================================================================
-export const getRankings = async (currentUid: string): Promise<RankedUser[]> => {
-    const usersRef = collection(db, "users");
-    const q = query(usersRef, orderBy('points', 'desc'), limit(50));
-    const querySnapshot = await getDocs(q);
-
-    const rankings: RankedUser[] = [];
-    querySnapshot.docs.forEach((doc, index) => {
-        const userData = doc.data() as UserProfile & { firstName?: string; lastName?: string };
-        
-        // Respect Privacy Settings
-        // If privacySettings.showInRanking is false, we could skip them OR anonymize them.
-        // Since pagination/ranking logic can get complex if we skip, let's anonymize them here.
-        // Note: In a real app, this filtering should happen via security rules or a separate server function
-        // to prevent leaking data to the client.
-        
-        let name = userData.fullName || `${userData.firstName || ''} ${userData.lastName || ''}`.trim();
-        let avatar = userData.avatarUrl;
-
-        if (userData.privacySettings && userData.privacySettings.showInRanking === false && userData.uid !== currentUid) {
-            name = "Anonymous User";
-            avatar = ""; // Default avatar
-        }
-
-        rankings.push({
-            uid: userData.uid,
-            rank: index + 1,
-            name: name,
-            avatar: avatar,
-            points: userData.points,
-            isCurrentUser: userData.uid === currentUid
-        });
-    });
-    return rankings;
-};
-
-// ===================================================================================
-// NOTIFICATION FUNCTIONS
-// ===================================================================================
 export const getNotifications = async (uid: string): Promise<Notification[]> => {
     const notificationsRef = collection(db, "users", uid, "notifications");
-    const q = query(notificationsRef, orderBy('time', 'desc'), limit(20));
-    const querySnapshot = await getDocs(q);
+    // Assuming a 'createdAt' or 'date' field for sorting
+    const q = query(notificationsRef, orderBy('date', 'desc'), limit(20));
 
-    if (querySnapshot.empty) {
-        return []; // Return empty array if no notifications exist
+    try {
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            let timeStr = '';
+            if (data.timestamp && typeof data.timestamp.toDate === 'function') {
+                timeStr = data.timestamp.toDate().toLocaleString("en-US", { timeZone: "Africa/Maputo" });
+            } else if (data.date) {
+                 timeStr = data.date;
+            }
+
+            return {
+                id: doc.id,
+                icon: data.icon || 'fa-solid fa-bell',
+                iconColor: data.iconColor || 'text-blue-500',
+                title: data.title || 'Notification',
+                description: data.description || '',
+                time: timeStr,
+                isRead: data.isRead || false
+            } as Notification;
+        });
+    } catch (error) {
+        console.warn("Error fetching notifications:", error);
+        return [];
     }
+};
 
-    return querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        const timeSince = (date: Date): string => {
-            const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-            let interval = seconds / 31536000;
-            if (interval > 1) return Math.floor(interval) + "y ago";
-            interval = seconds / 2592000;
-            if (interval > 1) return Math.floor(interval) + "mo ago";
-            interval = seconds / 86400;
-            if (interval > 1) return Math.floor(interval) + "d ago";
-            interval = seconds / 3600;
-            if (interval > 1) return Math.floor(interval) + "h ago";
-            interval = seconds / 60;
-            if (interval > 1) return Math.floor(interval) + "m ago";
-            return Math.floor(seconds) + "s ago";
-        }
-        
-        const notificationDate = data.time instanceof Timestamp ? data.time.toDate() : new Date();
+export const getRankings = async (currentUserUid: string): Promise<RankedUser[]> => {
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, orderBy("points", "desc"), limit(50));
 
-        return { 
-            id: doc.id,
-             ...data,
-             time: timeSince(notificationDate),
-        } as Notification;
-    });
+    try {
+        const querySnapshot = await getDocs(q);
+        const rankings: RankedUser[] = [];
+        let rank = 1;
+
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            rankings.push({
+                uid: doc.id,
+                rank: rank++,
+                name: data.fullName || data.username || "User",
+                avatar: data.avatarUrl || "",
+                points: data.points || 0,
+                isCurrentUser: doc.id === currentUserUid
+            });
+        });
+
+        return rankings;
+    } catch (error) {
+        console.error("Error fetching rankings:", error);
+        return [];
+    }
 };

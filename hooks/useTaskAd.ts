@@ -4,10 +4,9 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 interface UseTaskAdOptions {
     onReward: (data: { taskId: number; points: number }) => void;
     onError: (error: any) => void;
-    onTick?: (timeLeft: number, taskId: number) => void;
 }
 
-export const useTaskAd = ({ onReward, onError, onTick }: UseTaskAdOptions) => {
+export const useTaskAd = ({ onReward, onError }: UseTaskAdOptions) => {
     const [isLoading, setIsLoading] = useState(false);
     const [isAdActive, setIsAdActive] = useState(false);
     const [timeLeft, setTimeLeft] = useState(0);
@@ -103,11 +102,6 @@ export const useTaskAd = ({ onReward, onError, onTick }: UseTaskAdOptions) => {
                         const newVal = prev - 1;
                         timeLeftRef.current = newVal;
                         
-                        // Trigger tick callback for custom sound/vibration logic
-                        if (onTick && currentTaskIdRef.current !== null) {
-                            onTick(newVal, currentTaskIdRef.current);
-                        }
-
                         if (newVal <= 0) {
                             if (countdownRef.current) clearInterval(countdownRef.current);
                             return 0;
@@ -137,7 +131,7 @@ export const useTaskAd = ({ onReward, onError, onTick }: UseTaskAdOptions) => {
             setIsLoading(false);
             onError(error);
         }
-    }, [isLoading, onReward, onError, clearAllTimers, onTick]);
+    }, [isLoading, onReward, onError, clearAllTimers]);
 
     const cancelAd = useCallback((isSystemCancellation = false) => {
         if (isAdActiveRef.current) {

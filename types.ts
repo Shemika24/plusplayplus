@@ -1,5 +1,4 @@
 
-
 export interface SpinWheelState {
     spinsToday: number;
     winsToday: number;
@@ -64,7 +63,6 @@ export interface UserProfile {
     uid: string;
     dyverzeId: string;
     points: number;
-    language: string; // 'en', 'pt', 'es', etc.
     theme?: string; // 'light' | 'dark'
     
     // User Info

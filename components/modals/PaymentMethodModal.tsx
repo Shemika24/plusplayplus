@@ -1,13 +1,14 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import Modal from '../Modal';
-import { PaymentDetails } from '../../types';
+import { PaymentDetails, UserProfile } from '../../types';
 
 interface PaymentMethodModalProps {
     isOpen: boolean;
     onClose: () => void;
     currentDetails?: PaymentDetails[]; // Received as array now
     onSave: (details: PaymentDetails[]) => Promise<void>;
+    userProfile: UserProfile;
 }
 
 type PaymentMethodType = 'PayPal' | 'Payeer' | 'Payoneer' | 'Airtm' | 'Crypto';
@@ -44,7 +45,7 @@ const paymentMethods: MethodConfig[] = [
     { name: 'Crypto', icon: 'fa-solid fa-coins', placeholder: 'Enter your Crypto Wallet Address', colors: { icon: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20', border: 'border-purple-100 dark:border-purple-800' } },
 ];
 
-const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose, currentDetails = [], onSave }) => {
+const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose, currentDetails = [], onSave, userProfile }) => {
     const [expandedMethod, setExpandedMethod] = useState<PaymentMethodType | null>(null);
     
     // Form State
@@ -68,6 +69,18 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
+
+    // Calculate missing fields
+    const missingFields = useMemo(() => {
+        const missing: string[] = [];
+        if (!userProfile.fullName || userProfile.fullName.trim() === '') missing.push('Full Name');
+        if (!userProfile.dob || userProfile.dob.trim() === '') missing.push('Date of Birth');
+        if (!userProfile.address || userProfile.address.trim() === '') missing.push('Address');
+        if (!userProfile.phone || userProfile.phone.trim() === '') missing.push('Phone Number');
+        return missing;
+    }, [userProfile]);
+
+    const isProfileComplete = missingFields.length === 0;
 
     const handleMethodClick = (method: PaymentMethodType) => {
         if (expandedMethod === method) {
@@ -269,20 +282,57 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
         );
     }
 
+    if (!isOpen) return null;
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Manage Payment Methods">
-            <div className="p-4 bg-gray-50 max-h-[70vh] overflow-y-auto">
-                <p className="text-sm text-gray-500 mb-4">
-                    Configure your withdrawal methods below. You can save multiple methods and choose one when withdrawing.
-                </p>
+             {isProfileComplete ? (
+                <div className="p-4 bg-gray-50 max-h-[70vh] overflow-y-auto">
+                    {/* Important Security Notice */}
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-5 flex items-start">
+                        <i className="fa-solid fa-triangle-exclamation text-yellow-600 mt-1 mr-3 flex-shrink-0 text-lg"></i>
+                        <div>
+                            <p className="font-bold text-yellow-800 text-sm">Important: Ownership Verification</p>
+                            <p className="text-xs text-yellow-700 mt-1">
+                                For security reasons, the account holder for <strong>PayPal, Payeer, Payoneer, and Airtm</strong> MUST match your profile name. We do not process payments to third-party accounts.
+                            </p>
+                        </div>
+                    </div>
 
-                {paymentMethods.map(config => renderContent(config))}
-                
-                <style>{`
-                    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-                    .animate-fadeIn { animation: fadeIn 0.3s ease forwards; }
-                `}</style>
-            </div>
+                    <p className="text-sm text-gray-500 mb-4">
+                        Configure your withdrawal methods below. You can save multiple methods and choose one when withdrawing.
+                    </p>
+
+                    {paymentMethods.map(config => renderContent(config))}
+                </div>
+            ) : (
+                 <div className="p-6 bg-white flex flex-col items-center text-center">
+                    <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-4 text-red-500">
+                        <i className="fa-solid fa-user-lock text-3xl"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Profile Incomplete</h3>
+                    <p className="text-gray-500 mb-6 text-sm">
+                        To ensure security and regulatory compliance, you must complete your profile information before adding payment methods.
+                    </p>
+                    
+                    <div className="w-full bg-red-50 border border-red-100 rounded-xl p-4 mb-6 text-left">
+                        <p className="text-xs font-bold text-red-800 uppercase tracking-wide mb-2">Missing Information:</p>
+                        <ul className="space-y-2">
+                            {missingFields.map((field, idx) => (
+                                <li key={idx} className="flex items-center text-red-700 text-sm">
+                                    <i className="fa-solid fa-circle-xmark mr-2"></i> {field}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    
+                    {/* Removed "Go to Profile" button as requested */}
+                 </div>
+            )}
+             <style>{`
+                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+                .animate-fadeIn { animation: fadeIn 0.3s ease forwards; }
+            `}</style>
         </Modal>
     );
 };

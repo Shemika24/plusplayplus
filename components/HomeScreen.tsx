@@ -78,7 +78,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
     }
   };
   
-  const handleEarnPoints = async (points: number, title: string, icon: string, iconColor: string) => {
+  // skipDbSave: Use this when the calling component has already handled the Firestore transaction (e.g., TasksScreen)
+  const handleEarnPoints = async (points: number, title: string, icon: string, iconColor: string, skipDbSave: boolean = false) => {
       const newHistoryItem: Omit<TaskHistory, 'id' | 'timestamp'> = {
           reward: points,
           title: title,
@@ -87,6 +88,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
           date: new Date().toLocaleDateString("en-US", { timeZone: "Africa/Maputo" }),
       };
       
+      // Optimistic UI Update
       setUserProfile(prev => ({
         ...prev,
         points: prev.points + points,
@@ -96,19 +98,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
         },
       }));
       
-      try {
-        await addTaskHistoryItem(userProfile.uid, newHistoryItem);
-      } catch (e) {
-          console.error("Failed to update points:", e);
-           setUserProfile(prev => ({
-            ...prev,
-            points: prev.points - points,
-            taskStats: {
-              ...prev.taskStats,
-              completed: (prev.taskStats?.completed || 0) - 1,
-            },
-          }));
-          alert("There was an error saving your points. Please try again.");
+      if (!skipDbSave) {
+          try {
+            await addTaskHistoryItem(userProfile.uid, newHistoryItem);
+          } catch (e) {
+              console.error("Failed to update points:", e);
+               // Rollback UI if DB fails
+               setUserProfile(prev => ({
+                ...prev,
+                points: prev.points - points,
+                taskStats: {
+                  ...prev.taskStats,
+                  completed: (prev.taskStats?.completed || 0) - 1,
+                },
+              }));
+              alert("There was an error saving your points. Please try again.");
+          }
       }
   };
 
@@ -246,7 +251,7 @@ const MainDashboardScreen: React.FC<{ userProfile: UserProfile; onNavigate: (scr
                 <div className="flex justify-between items-start">
                     <div>
                         <p className="text-sm opacity-80">Balance:</p>
-                        <p className="text-2xl font-bold">${balance.toFixed(6)}</p>
+                        <p className="text-2xl font-bold">${balance.toFixed(2)}</p>
                     </div>
                     <div className="text-right w-2/5">
                         <div className="w-full bg-white/25 rounded-full h-2 mb-1.5">

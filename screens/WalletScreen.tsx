@@ -27,7 +27,7 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ userProfile, onWithdrawClic
                 <div className="flex justify-between items-center">
                     <div>
                         <p className="text-sm opacity-80">Balance:</p>
-                        <p className="text-3xl font-bold">${balance.toFixed(6)}</p>
+                        <p className="text-3xl font-bold">${balance.toFixed(2)}</p>
                         <p className="text-sm opacity-80 mt-1">{points.toLocaleString()} Points</p>
                     </div>
                     <div>
