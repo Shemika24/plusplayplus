@@ -1,8 +1,4 @@
 
-
-
-
-
 import { UserProfile, TaskHistory, Withdrawal, Task, RankedUser, Notification } from '../types';
 import { 
     doc, 
@@ -47,6 +43,8 @@ interface UserDailyState {
     isOnBreak: boolean;
     breakEndTime: Timestamp | null;
 }
+
+const POINTS_PER_DOLLAR = 142857;
 
 // --- MOCK DATA GENERATION ---
 
@@ -121,8 +119,6 @@ const generateDyverzeId = (): string => {
 interface CreateProfileOptions {
     fullName: string;
     avatarUrl?: string;
-    telegramUsername?: string;
-    telegramId?: number;
 }
 
 export const createUserProfileDocument = async (userAuth: User, additionalData: CreateProfileOptions): Promise<void> => {
@@ -131,15 +127,12 @@ export const createUserProfileDocument = async (userAuth: User, additionalData: 
 
     if (!userDocSnap.exists()) {
         const { email, uid } = userAuth;
-        const { fullName, avatarUrl, telegramUsername, telegramId } = additionalData;
+        const { fullName, avatarUrl } = additionalData;
         
-        // Use Telegram username if available, otherwise derive from name
-        const username = telegramUsername || fullName.split(' ')[0].toLowerCase();
+        const username = fullName.split(' ')[0].toLowerCase();
         
-        // If we have Telegram ID, use it. Else fallback to UID.
-        const refCode = telegramId || uid;
-        // Use telegram bot link format
-        const referralLink = `https://t.me/plusplayplus_bot?start=${refCode}`;
+        const refCode = uid;
+        const referralLink = `${window.location.origin}?ref=${refCode}`;
 
         const newProfile: UserProfile = {
             uid,
@@ -147,8 +140,9 @@ export const createUserProfileDocument = async (userAuth: User, additionalData: 
             fullName,
             username,
             dyverzeId: generateDyverzeId(),
-            telegramId: telegramId,
             points: 0,
+            language: 'en', // Default language
+            theme: 'light',
             avatarUrl: avatarUrl || "",
             bio: "",
             dob: "",
@@ -213,6 +207,18 @@ export const getUserProfile = async (user: User): Promise<UserProfile | null> =>
     if (userDocSnap.exists()) {
         const data = userDocSnap.data() as any; // Use any for migration
         let needsUpdate = false;
+
+        // Language Migration
+        if (!data.language) {
+            data.language = 'en';
+            needsUpdate = true;
+        }
+
+        // Theme Migration
+        if (!data.theme) {
+            data.theme = 'light';
+            needsUpdate = true;
+        }
 
         // For backward compatibility, ensure new stats objects exist
         if (!data.withdrawalStats) {
@@ -336,7 +342,7 @@ export const addWithdrawalRequest = async (uid: string, withdrawalItem: Omit<Wit
     const historyCollectionRef = collection(db, "users", uid, "withdrawalHistory");
     const newHistoryDocRef = doc(historyCollectionRef);
 
-    const pointsToDeduct = withdrawalItem.amount * 83500;
+    const pointsToDeduct = withdrawalItem.amount * POINTS_PER_DOLLAR;
 
     const userDoc = await getDoc(userDocRef);
     const currentPoints = userDoc.data()?.points || 0;
@@ -596,14 +602,17 @@ export const getDailyTaskState = async (uid: string) => {
     let stateDoc = await getDoc(taskDocRef);
     let state: UserDailyState;
 
-    const isSameDay = (d1: Date, d2: Date) => {
-        return d1.getFullYear() === d2.getFullYear() &&
-            d1.getMonth() === d2.getMonth() &&
-            d1.getDate() === d2.getDate();
+    // Use Mozambique time for date comparison
+    const getMozambiqueDate = (date: Date) => {
+        const dateString = date.toLocaleDateString("en-CA", { timeZone: "Africa/Maputo" });
+        return dateString; // Returns YYYY-MM-DD in Maputo time
     };
 
-    if (!stateDoc.exists() || !isSameDay(stateDoc.data()!.lastUpdated.toDate(), new Date())) {
-        // If no state exists or it's from a previous day, create a new one.
+    const currentMaputoDateStr = getMozambiqueDate(new Date());
+    const lastUpdatedMaputoDateStr = stateDoc.exists() ? getMozambiqueDate(stateDoc.data()!.lastUpdated.toDate()) : '';
+
+    if (!stateDoc.exists() || lastUpdatedMaputoDateStr !== currentMaputoDateStr) {
+        // If no state exists or it's from a previous day (Maputo time), create a new one.
         state = await createNewDailyState(uid);
     } else {
         state = stateDoc.data() as UserDailyState;

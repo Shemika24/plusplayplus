@@ -63,7 +63,7 @@ const earnOptions: EarnOption[] = [
 
 // Reusable card component for grid items
 const EarnCard: React.FC<{ option: EarnOption; onClick: () => void; }> = ({ option, onClick }) => (
-    <button onClick={onClick} className="bg-white rounded-xl shadow-lg p-4 text-center flex flex-col items-center justify-center transform hover:scale-105 transition-transform duration-300 h-full">
+    <button onClick={onClick} className="bg-[var(--bg-card)] rounded-xl shadow-lg p-4 text-center flex flex-col items-center justify-center transform hover:scale-105 transition-all duration-300 h-full border border-[var(--border-color)] hover:border-[var(--primary)]">
         <i className={`${option.icon} ${option.iconColor} text-3xl mb-3`}></i>
         <h3 className="font-bold text-md text-[var(--dark)]">{option.title}</h3>
         <p className="text-xs text-[var(--gray)] mt-1 flex-grow">{option.subtitle}</p>
@@ -72,32 +72,23 @@ const EarnCard: React.FC<{ option: EarnOption; onClick: () => void; }> = ({ opti
 
 
 const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigate, onEarnPoints, userProfile }) => {
-    // Modal states
     const [isDailyCheckinOpen, setDailyCheckinOpen] = useState(false);
     const [isLuckyWheelOpen, setLuckyWheelOpen] = useState(false);
-
-    // Online status
     const [isOnline, setIsOnline] = useState(navigator.onLine);
-
-    // Spin wheel state
     const [spinWheelState, setSpinWheelState] = useState<SpinWheelState>({
         spinsToday: 0,
         winsToday: 0,
         lossesToday: 0,
     });
-
     const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile | null>(null);
 
-    // --- Fetch User Profile for Sync ---
     const fetchUserData = async () => {
         const auth = getAuth();
         if (auth.currentUser) {
             const profile = await getUserProfile(auth.currentUser);
             if (profile) {
                 setCurrentUserProfile(profile);
-                
-                // Check Date Logic for Spins
-                const todayStr = new Date().toLocaleDateString();
+                const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Maputo" });
                 if (profile.spinStats && profile.spinStats.lastDate === todayStr) {
                     setSpinWheelState({
                         spinsToday: profile.spinStats.count,
@@ -105,7 +96,6 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigate, onEarnPoints, userP
                         lossesToday: profile.spinStats.losses,
                     });
                 } else {
-                    // Reset if date is different (visual reset, backend handles actual logic)
                     setSpinWheelState({
                         spinsToday: 0,
                         winsToday: 0,
@@ -117,13 +107,12 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigate, onEarnPoints, userP
     };
 
     useEffect(() => {
-        // Prefer prop profile, else fetch
         if (userProfile) {
             setCurrentUserProfile(userProfile);
         } else {
             fetchUserData();
         }
-    }, [userProfile, isLuckyWheelOpen]); // Refresh when modal opens/closes
+    }, [userProfile, isLuckyWheelOpen]);
 
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
@@ -138,7 +127,6 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigate, onEarnPoints, userP
         };
     }, []);
 
-    // Countdown timer logic
     const getInitialTime = () => {
         const eightHoursInSeconds = 8 * 60 * 60;
         return eightHoursInSeconds;
@@ -177,9 +165,8 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigate, onEarnPoints, userP
         if (!auth.currentUser) return;
 
         const points = typeof prize === 'number' ? prize : 0;
-        const todayStr = new Date().toLocaleDateString();
+        const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Maputo" });
 
-        // Optimistic Update
         setSpinWheelState(prevState => ({
             spinsToday: prevState.spinsToday + 1,
             winsToday: points > 0 ? prevState.winsToday + 1 : prevState.winsToday,
@@ -187,17 +174,15 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigate, onEarnPoints, userP
         }));
 
         try {
-            // Persist to Firestore
             const updatedProfile = await saveSpinResult(auth.currentUser.uid, points, todayStr);
-            setCurrentUserProfile(updatedProfile); // Update local profile with server result
+            setCurrentUserProfile(updatedProfile);
             
             if (points > 0) {
                 onEarnPoints(points, 'Lucky Wheel Win', 'fa-solid fa-dharmachakra', 'text-purple-500');
             }
         } catch (error) {
             console.error("Failed to save spin:", error);
-            // Revert optimistic update or show error
-            fetchUserData(); // Sync back with server
+            fetchUserData();
         }
     };
 
@@ -225,7 +210,6 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigate, onEarnPoints, userP
                  </div>
             </div>
 
-            {/* --- Modals --- */}
             <Modal
                 isOpen={isDailyCheckinOpen}
                 onClose={() => setDailyCheckinOpen(false)}

@@ -1,7 +1,8 @@
 
+
 import { useState, useCallback, useRef, useEffect } from 'react';
 
-// Define global types for the external script and Telegram
+// Define global types for the external script
 declare global {
     interface Window {
         show_10206331?: (options?: { type?: string; ymid?: string }) => Promise<void>;
@@ -77,18 +78,11 @@ export const useRewardedAd = ({
         }
     }, []);
 
-    const isTelegramWebView = useCallback(() => {
-        return typeof window !== 'undefined' && 
-               !!window.Telegram && 
-               !!window.Telegram.WebApp &&
-               window.Telegram.WebApp.platform !== 'unknown';
-    }, []);
-
     const generateTrackingId = useCallback((userId: string | null = null) => {
         if (userId) return `user-${userId}-${Date.now()}`;
-        const sessionId = sessionStorage.getItem('tg_session_id') || 
+        const sessionId = sessionStorage.getItem('session_id') || 
                          `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        sessionStorage.setItem('tg_session_id', sessionId);
+        sessionStorage.setItem('session_id', sessionId);
         return `${sessionId}-${Date.now()}`;
     }, []);
 
@@ -224,6 +218,6 @@ export const useRewardedAd = ({
         isPreloading,
         isAdActive,
         timeLeft,
-        isTelegramWebView: isTelegramWebView()
+        // Removed isTelegramWebView
     };
 };

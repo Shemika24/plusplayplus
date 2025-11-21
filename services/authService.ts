@@ -1,6 +1,5 @@
 
 
-
 import { 
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
@@ -27,7 +26,7 @@ export const signUpUser = async (
     name: string, 
     email: string, 
     password: string,
-    options?: { avatarUrl?: string; telegramUsername?: string; telegramId?: number }
+    options?: { avatarUrl?: string }
 ): Promise<void> => {
     try {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);

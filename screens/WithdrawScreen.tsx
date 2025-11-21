@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserProfile, PaymentDetails } from '../types';
 import { storageService } from '../utils/storage';
@@ -22,7 +21,6 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
 
     const savedMethods = userProfile?.savedPaymentMethods || [];
 
-    // Set default selected method if only one exists
     useEffect(() => {
         if (savedMethods.length === 1 && selectedMethodIndex === null) {
             setSelectedMethodIndex(0);
@@ -78,7 +76,6 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
     }, [isOnCooldown, nextWithdrawalDate]);
 
     const getMethodSpecs = (method: string, cryptoName?: string) => {
-        // Defaults
         let fee = 0.03;
         let min = 5;
         let max = 500;
@@ -163,7 +160,7 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
 
     if (success) {
         return (
-            <div className="flex flex-col items-center justify-center text-center h-full p-6 bg-gray-50">
+            <div className="flex flex-col items-center justify-center text-center h-full p-6 bg-[var(--gray-light)]">
                  <div className="w-24 h-24 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-6 border-4 border-green-200">
                     <i className="fa-solid fa-check-double text-green-500 text-5xl"></i>
                 </div>
@@ -183,34 +180,34 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
     }
     
     return (
-        <div className="flex flex-col h-full bg-gray-50">
-            <div className="p-4 border-b border-gray-200 bg-white sticky top-0 z-10 flex items-center">
-                <button onClick={onBack} className="mr-3 text-gray-600">
+        <div className="flex flex-col h-full bg-[var(--gray-light)]">
+            <div className="p-4 border-b border-[var(--border-color)] bg-[var(--bg-card)] sticky top-0 z-10 flex items-center">
+                <button onClick={onBack} className="mr-3 text-[var(--gray)] hover:text-[var(--dark)] transition-colors">
                     <i className="fa-solid fa-arrow-left text-lg"></i>
                 </button>
-                <h1 className="text-lg font-bold text-gray-800">
+                <h1 className="text-lg font-bold text-[var(--dark)]">
                     Withdraw Funds
                 </h1>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
                 {isOnCooldown ? (
-                    <div className="flex flex-col items-center justify-center text-center h-full p-6 bg-white rounded-xl shadow-lg">
+                    <div className="flex flex-col items-center justify-center text-center h-full p-6 bg-[var(--bg-card)] rounded-xl shadow-lg border border-[var(--border-color)]">
                         <i className="fa-solid fa-clock-rotate-left text-5xl text-blue-500 mb-6"></i>
                         <h2 className="text-2xl font-bold text-[var(--dark)] mb-2">Withdrawal Cooldown</h2>
                         <p className="text-[var(--gray)]">
                             You can make another withdrawal request in:
                         </p>
-                        <p className="font-mono text-lg font-bold text-[var(--dark)] mt-2 bg-blue-100 p-3 rounded-lg w-full tracking-wider">
+                        <p className="font-mono text-lg font-bold text-[var(--dark)] mt-2 bg-[var(--bg-input)] p-3 rounded-lg w-full tracking-wider">
                             {timeLeft}
                         </p>
                     </div>
                 ) : (
                     <>
-                        <div className="bg-white p-4 rounded-xl shadow-lg flex justify-between items-center">
+                        <div className="bg-[var(--bg-card)] p-4 rounded-xl shadow-lg flex justify-between items-center border border-[var(--border-color)]">
                             <div>
                                 <p className="text-sm text-[var(--gray)]">Available Balance</p>
-                                <p className="text-2xl font-bold text-[var(--dark)]">${balance.toFixed(2)}</p>
+                                <p className="text-2xl font-bold text-[var(--dark)]">${balance.toFixed(6)}</p>
                             </div>
                             <i className="fa-solid fa-wallet text-3xl text-[var(--primary)]"></i>
                         </div>
@@ -226,7 +223,7 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
                                         <select 
                                             value={selectedMethodIndex !== null ? selectedMethodIndex : ''}
                                             onChange={(e) => setSelectedMethodIndex(parseInt(e.target.value))}
-                                            className="w-full appearance-none bg-white border border-gray-200 rounded-xl p-4 pr-10 shadow-sm focus:ring-2 focus:ring-[var(--primary)] focus:outline-none font-semibold text-gray-800"
+                                            className="w-full appearance-none bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl p-4 pr-10 shadow-sm focus:ring-2 focus:ring-[var(--primary)] focus:outline-none font-semibold text-[var(--dark)]"
                                         >
                                             <option value="" disabled>Choose a method...</option>
                                             {savedMethods.map((method, index) => (
@@ -235,36 +232,36 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
                                                 </option>
                                             ))}
                                         </select>
-                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
+                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-[var(--gray)]">
                                             <i className="fa-solid fa-chevron-down"></i>
                                         </div>
                                     </div>
 
                                     {selectedPaymentDetails && (
-                                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-center animate-fadeIn">
+                                        <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800 flex items-center animate-fadeIn">
                                             <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center mr-3 shadow-sm">
                                                 <i className={`${getIconClass(selectedPaymentDetails.method)} text-xl`}></i>
                                             </div>
                                             <div className="flex-1 overflow-hidden">
                                                 <p className="font-bold text-[var(--dark)] text-sm">
                                                     {selectedPaymentDetails.method}
-                                                    {selectedPaymentDetails.cryptoName && <span className="font-normal text-gray-500 ml-1">({selectedPaymentDetails.cryptoName})</span>}
+                                                    {selectedPaymentDetails.cryptoName && <span className="font-normal text-[var(--gray)] ml-1">({selectedPaymentDetails.cryptoName})</span>}
                                                 </p>
-                                                <p className="text-xs text-gray-600 truncate">{selectedPaymentDetails.detail}</p>
+                                                <p className="text-xs text-[var(--gray)] truncate">{selectedPaymentDetails.detail}</p>
                                             </div>
                                         </div>
                                     )}
                                 </div>
                             ) : (
-                                <div className="bg-yellow-50 p-5 rounded-xl border border-yellow-100 text-center">
-                                    <div className="w-12 h-12 mx-auto bg-yellow-100 rounded-full flex items-center justify-center mb-3">
-                                        <i className="fa-solid fa-triangle-exclamation text-yellow-600 text-xl"></i>
+                                <div className="bg-yellow-50 dark:bg-yellow-900/20 p-5 rounded-xl border border-yellow-100 dark:border-yellow-800 text-center">
+                                    <div className="w-12 h-12 mx-auto bg-yellow-100 dark:bg-yellow-800 rounded-full flex items-center justify-center mb-3">
+                                        <i className="fa-solid fa-triangle-exclamation text-yellow-600 dark:text-yellow-300 text-xl"></i>
                                     </div>
-                                    <h4 className="font-bold text-yellow-800 mb-1">No Payment Methods</h4>
-                                    <p className="text-sm text-yellow-700 mb-4">You haven't saved any withdrawal methods yet.</p>
+                                    <h4 className="font-bold text-yellow-800 dark:text-yellow-200 mb-1">No Payment Methods</h4>
+                                    <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-4">You haven't saved any withdrawal methods yet.</p>
                                     <button 
                                         onClick={() => alert("Please go to Profile > Settings > Payment Methods to add one.")}
-                                        className="bg-white text-yellow-700 font-bold py-2 px-4 rounded-lg border border-yellow-200 shadow-sm hover:bg-yellow-50"
+                                        className="bg-white dark:bg-gray-800 text-yellow-700 dark:text-yellow-300 font-bold py-2 px-4 rounded-lg border border-yellow-200 dark:border-yellow-700 shadow-sm hover:bg-yellow-50 dark:hover:bg-yellow-900/30"
                                     >
                                         Add Method in Profile
                                     </button>
@@ -272,9 +269,9 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
                             )}
                         </div>
 
-                        <div className="bg-white p-5 rounded-xl shadow-lg space-y-4">
+                        <div className="bg-[var(--bg-card)] p-5 rounded-xl shadow-lg space-y-4 border border-[var(--border-color)]">
                             <div>
-                                <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">Amount (USD)</label>
+                                <label htmlFor="amount" className="block text-sm font-medium text-[var(--gray)] mb-1">Amount (USD)</label>
                                 <input
                                     type="number"
                                     id="amount"
@@ -285,13 +282,13 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
                                     }}
                                     placeholder="0.00"
                                     disabled={!selectedPaymentDetails}
-                                    className="w-full px-3 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-2 focus:ring-[var(--primary)] focus:border-[var(--primary)] disabled:bg-gray-100 outline-none font-bold text-lg"
+                                    className="w-full px-3 py-3 border border-[var(--border-color)] rounded-xl shadow-sm focus:ring-2 focus:ring-[var(--primary)] focus:border-[var(--primary)] disabled:bg-[var(--bg-input)] bg-[var(--bg-input)] text-[var(--dark)] outline-none font-bold text-lg"
                                 />
                             </div>
 
                             {selectedPaymentDetails && (
-                                <div className="bg-gray-50 p-3 rounded-lg">
-                                    <p className="text-xs text-gray-500">
+                                <div className="bg-[var(--bg-input)] p-3 rounded-lg">
+                                    <p className="text-xs text-[var(--gray)]">
                                         Min: <span className="font-semibold">${minWithdrawal}</span> • Max: <span className="font-semibold">${maxWithdrawal}</span>
                                     </p>
                                 </div>
@@ -299,23 +296,23 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
                         </div>
                         
                         {selectedPaymentDetails && (
-                            <div className="bg-gray-100 p-4 rounded-xl text-sm space-y-2">
+                            <div className="bg-[var(--bg-input)] p-4 rounded-xl text-sm space-y-2 border border-[var(--border-color)]">
                                 <div className="flex justify-between">
-                                    <span className="text-gray-600">Withdrawal Amount:</span>
-                                    <span className="font-medium text-gray-800">${amountNumber.toFixed(2)}</span>
+                                    <span className="text-[var(--gray)]">Withdrawal Amount:</span>
+                                    <span className="font-medium text-[var(--dark)]">${amountNumber.toFixed(2)}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-gray-600">Fee ({(feePercentage * 100).toFixed(1)}%):</span>
+                                    <span className="text-[var(--gray)]">Fee ({(feePercentage * 100).toFixed(1)}%):</span>
                                     <span className="font-medium text-red-600">-${fee.toFixed(2)}</span>
                                 </div>
-                                <div className="flex justify-between font-bold text-base border-t border-gray-300 pt-2 mt-2">
-                                    <span className="text-gray-800">You Will Receive:</span>
+                                <div className="flex justify-between font-bold text-base border-t border-[var(--border-color)] pt-2 mt-2">
+                                    <span className="text-[var(--dark)]">You Will Receive:</span>
                                     <span className="text-[var(--primary)]">${amountToReceive.toFixed(2)}</span>
                                 </div>
                             </div>
                         )}
 
-                        {error && <p className="text-red-600 text-sm text-center bg-red-100 p-3 rounded-lg">{error}</p>}
+                        {error && <p className="text-red-600 text-sm text-center bg-red-100 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">{error}</p>}
 
                         <button 
                             onClick={handleWithdraw}

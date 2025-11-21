@@ -40,7 +40,8 @@ const WithdrawalItem: React.FC<{ item: Withdrawal }> = ({ item }) => {
             dateObj = new Date(item.date);
         }
 
-        return dateObj.toLocaleString(undefined, {
+        return dateObj.toLocaleString("en-US", {
+            timeZone: "Africa/Maputo",
             year: 'numeric',
             month: 'short',
             day: 'numeric',
@@ -50,16 +51,16 @@ const WithdrawalItem: React.FC<{ item: Withdrawal }> = ({ item }) => {
     }, [item]);
 
     return (
-        <div className="flex items-center p-4 border-b border-gray-200 last:border-b-0 bg-white">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center mr-4 bg-gray-100">
+        <div className="flex items-center p-4 border-b border-[var(--border-color)] last:border-b-0 bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] transition-colors">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center mr-4 bg-[var(--bg-input)]">
                 <i className={`${icons[item.status] || 'fa-solid fa-question text-gray-400'} text-xl`}></i>
             </div>
             <div className="flex-1">
-                <p className="font-bold text-sm text-gray-800">{item.method}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{formattedDateTime}</p>
+                <p className="font-bold text-sm text-[var(--dark)]">{item.method}</p>
+                <p className="text-xs text-[var(--gray)] mt-0.5">{formattedDateTime}</p>
             </div>
             <div className="text-right">
-                <p className="font-bold text-sm text-gray-800">${item.amount.toFixed(2)}</p>
+                <p className="font-bold text-sm text-[var(--dark)]">${item.amount.toFixed(2)}</p>
                 <StatusBadge status={item.status} />
             </div>
         </div>
@@ -82,12 +83,9 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ userP
     const [statusFilter, setStatusFilter] = useState<StatusOption>('All');
     const [methodFilter, setMethodFilter] = useState<MethodOption>('All');
     
-    // Applied Filter States (to trigger fetches)
-    const [appliedDateRange, setAppliedDateRange] = useState<DateRangeOption>('All');
     const [appliedStart, setAppliedStart] = useState<Date | undefined>(undefined);
     const [appliedEnd, setAppliedEnd] = useState<Date | undefined>(undefined);
 
-    // Ref for Infinite Scroll
     const observerTarget = useRef<HTMLDivElement>(null);
 
     const calculateDateRange = (option: DateRangeOption, customStart?: string, customEnd?: string): { start?: Date, end?: Date } => {
@@ -191,7 +189,6 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ userP
         };
     }, [fetchHistory, hasMore, isLoading, isLoadingMore]);
 
-    // Trigger fetch when applied date filters change
     useEffect(() => {
         fetchHistory(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -201,7 +198,6 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ userP
         const { start, end } = calculateDateRange(dateRange, customStartDate, customEndDate);
         setAppliedStart(start);
         setAppliedEnd(end);
-        setAppliedDateRange(dateRange);
         setIsFilterOpen(false);
     };
     
@@ -213,7 +209,6 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ userP
         setMethodFilter('All');
         setAppliedStart(undefined);
         setAppliedEnd(undefined);
-        setAppliedDateRange('All');
         setIsFilterOpen(false);
     };
 
@@ -225,9 +220,6 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ userP
             let matchesMethod = true;
             if (methodFilter !== 'All') {
                 if (methodFilter === 'Crypto') {
-                    // Assuming Crypto methods might be specific names like 'Tron', 'Litecoin', etc.
-                    // or stored as 'Crypto'. Adjust based on exact storage format.
-                    // Based on WithdrawScreen, stored as 'Tron (TRX)', 'Litecoin (LTC)', etc.
                     const commonMethods = ['PayPal', 'Payeer', 'Payoneer', 'Airtm'];
                     matchesMethod = !commonMethods.includes(item.method);
                 } else {
@@ -242,15 +234,15 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ userP
     const displayCount = (statusFilter === 'All' && methodFilter === 'All') ? totalCount : filteredHistory.length;
 
     return (
-        <div className="flex flex-col h-full bg-gray-50">
-            <div className="p-4 border-b border-gray-200 bg-white sticky top-0 z-10 shadow-sm">
+        <div className="flex flex-col h-full bg-[var(--gray-light)]">
+            <div className="p-4 border-b border-[var(--border-color)] bg-[var(--bg-card)] sticky top-0 z-10 shadow-sm">
                 <div className="flex justify-between items-center">
-                    <h1 className="text-lg font-bold text-gray-800">
-                        Withdrawal History {displayCount !== null && <span className="text-sm font-medium text-gray-500 ml-1">({displayCount})</span>}
+                    <h1 className="text-lg font-bold text-[var(--dark)]">
+                        Withdrawal History {displayCount !== null && <span className="text-sm font-medium text-[var(--gray)] ml-1">({displayCount})</span>}
                     </h1>
                     <button 
                         onClick={() => setIsFilterOpen(!isFilterOpen)}
-                        className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isFilterOpen || dateRange !== 'All' || statusFilter !== 'All' || methodFilter !== 'All' ? 'bg-blue-100 text-[var(--primary)]' : 'bg-gray-100 text-gray-600'}`}
+                        className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isFilterOpen || dateRange !== 'All' || statusFilter !== 'All' || methodFilter !== 'All' ? 'bg-blue-100 text-[var(--primary)]' : 'bg-[var(--bg-input)] text-[var(--gray)]'}`}
                     >
                         <i className="fa-solid fa-filter"></i>
                     </button>
@@ -273,7 +265,7 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ userP
                                     <button
                                         key={opt.id}
                                         onClick={() => setDateRange(opt.id as DateRangeOption)}
-                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${dateRange === opt.id ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${dateRange === opt.id ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-[var(--bg-card)] text-[var(--gray)] border-[var(--border-color)] hover:bg-[var(--bg-card-hover)]'}`}
                                     >
                                         {opt.label}
                                     </button>
@@ -281,9 +273,9 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ userP
                             </div>
                             {dateRange === 'Custom' && (
                                 <div className="flex items-center gap-2 mt-3">
-                                    <input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="w-1/2 p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[var(--primary)]" />
+                                    <input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="w-1/2 p-2 border border-[var(--border-color)] rounded-lg text-sm focus:outline-none focus:border-[var(--primary)] bg-[var(--bg-input)] text-[var(--dark)]" />
                                     <span className="text-gray-400">-</span>
-                                    <input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className="w-1/2 p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[var(--primary)]" />
+                                    <input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className="w-1/2 p-2 border border-[var(--border-color)] rounded-lg text-sm focus:outline-none focus:border-[var(--primary)] bg-[var(--bg-input)] text-[var(--dark)]" />
                                 </div>
                             )}
                         </div>
@@ -296,7 +288,7 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ userP
                                     <button
                                         key={status}
                                         onClick={() => setStatusFilter(status as StatusOption)}
-                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${statusFilter === status ? 'bg-[var(--secondary)] text-white border-[var(--secondary)]' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${statusFilter === status ? 'bg-[var(--secondary)] text-white border-[var(--secondary)]' : 'bg-[var(--bg-card)] text-[var(--gray)] border-[var(--border-color)] hover:bg-[var(--bg-card-hover)]'}`}
                                     >
                                         {status}
                                     </button>
@@ -312,7 +304,7 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ userP
                                     <button
                                         key={method}
                                         onClick={() => setMethodFilter(method as MethodOption)}
-                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${methodFilter === method ? 'bg-purple-500 text-white border-purple-500' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${methodFilter === method ? 'bg-purple-500 text-white border-purple-500' : 'bg-[var(--bg-card)] text-[var(--gray)] border-[var(--border-color)] hover:bg-[var(--bg-card-hover)]'}`}
                                     >
                                         {method}
                                     </button>
@@ -322,7 +314,7 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ userP
 
                         {/* Action Buttons */}
                         <div className="flex gap-3 pt-2">
-                            <button onClick={resetFilters} className="flex-1 py-2 text-sm font-bold text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">Reset</button>
+                            <button onClick={resetFilters} className="flex-1 py-2 text-sm font-bold text-[var(--gray)] bg-[var(--bg-input)] rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors">Reset</button>
                             <button onClick={applyFilters} className="flex-1 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-dark)] transition-colors">Apply Filters</button>
                         </div>
                     </div>
@@ -352,7 +344,7 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ userP
 
             <div className="flex-1 overflow-y-auto">
                  {isLoading ? (
-                    <div className="text-center p-8 text-gray-500">
+                    <div className="text-center p-8 text-[var(--gray)]">
                         <i className="fa-solid fa-spinner fa-spin text-4xl"></i>
                     </div>
                  ) : filteredHistory.length > 0 ? (
@@ -364,7 +356,7 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ userP
                         {hasMore && (
                             <div ref={observerTarget} className="py-6 flex justify-center items-center">
                                 {isLoadingMore ? (
-                                    <div className="flex items-center text-gray-500 text-sm">
+                                    <div className="flex items-center text-[var(--gray)] text-sm">
                                         <i className="fa-solid fa-spinner fa-spin mr-2"></i>
                                         Loading more...
                                     </div>
@@ -375,14 +367,14 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ userP
                         )}
 
                         {!hasMore && (
-                            <div className="pt-8 pb-24 text-center text-gray-400 flex flex-col items-center justify-center opacity-60">
+                            <div className="pt-8 pb-24 text-center text-[var(--gray)] flex flex-col items-center justify-center opacity-60">
                                 <i className="fa-regular fa-circle-check text-2xl mb-2"></i>
                                 <p className="text-sm font-medium">No more history</p>
                             </div>
                         )}
                     </>
                  ) : (
-                    <div className="text-center p-8 text-gray-500">
+                    <div className="text-center p-8 text-[var(--gray)]">
                         <i className="fa-solid fa-filter-circle-xmark text-4xl mb-4 text-gray-300"></i>
                         <p>No withdrawal history found.</p>
                         <p className="text-sm">Try adjusting your filters.</p>

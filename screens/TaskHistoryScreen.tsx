@@ -9,23 +9,19 @@ interface TaskHistoryScreenProps {
 }
 
 const TaskHistoryItem: React.FC<{ item: TaskHistory }> = ({ item }) => {
-    // Helper to format the timestamp into local date and time
     const formattedDateTime = useMemo(() => {
         let dateObj: Date;
 
-        // Check if item.timestamp exists and has a toDate method (Firestore Timestamp)
         if (item.timestamp && typeof item.timestamp.toDate === 'function') {
             dateObj = item.timestamp.toDate();
         } else if (item.timestamp && item.timestamp instanceof Date) {
-            // If it's already a JS Date
              dateObj = item.timestamp;
         } else {
-            // Fallback to parsing the date string (which might not have time info, but it's safe)
             dateObj = new Date(item.date);
         }
 
-        // Format: "Oct 25, 2023, 2:30 PM"
-        return dateObj.toLocaleString(undefined, {
+        return dateObj.toLocaleString("en-US", {
+            timeZone: "Africa/Maputo",
             year: 'numeric',
             month: 'short',
             day: 'numeric',
@@ -35,17 +31,17 @@ const TaskHistoryItem: React.FC<{ item: TaskHistory }> = ({ item }) => {
     }, [item]);
 
     return (
-        <div className="flex items-center p-4 border-b border-gray-200 last:border-b-0 bg-white">
-            <div className="w-10 h-10 rounded-full flex items-center justify-center mr-4 bg-gray-100">
+        <div className="flex items-center p-4 border-b border-[var(--border-color)] last:border-b-0 bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] transition-colors">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center mr-4 bg-[var(--bg-input)]">
                 <i className={`${item.icon} ${item.iconColor} text-lg`}></i>
             </div>
             <div className="flex-1">
-                <p className="font-bold text-sm text-gray-800">{item.title}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{formattedDateTime}</p>
+                <p className="font-bold text-sm text-[var(--dark)]">{item.title}</p>
+                <p className="text-xs text-[var(--gray)] mt-0.5">{formattedDateTime}</p>
             </div>
             <div className="text-right">
                 <p className="font-bold text-sm text-green-600">+{item.reward}</p>
-                <p className="text-xs text-gray-500">Points</p>
+                <p className="text-xs text-[var(--gray)]">Points</p>
             </div>
         </div>
     )
@@ -69,12 +65,10 @@ const TaskHistoryScreen: React.FC<TaskHistoryScreenProps> = ({ userProfile }) =>
     const [customEndDate, setCustomEndDate] = useState('');
     const [taskType, setTaskType] = useState<TaskTypeOption>('All');
     
-    // Applied Filter States (to trigger fetches)
     const [appliedDateRange, setAppliedDateRange] = useState<DateRangeOption>('All');
     const [appliedStart, setAppliedStart] = useState<Date | undefined>(undefined);
     const [appliedEnd, setAppliedEnd] = useState<Date | undefined>(undefined);
 
-    // Ref for Infinite Scroll
     const observerTarget = useRef<HTMLDivElement>(null);
 
     const calculateDateRange = (option: DateRangeOption, customStart?: string, customEnd?: string): { start?: Date, end?: Date } => {
@@ -120,18 +114,15 @@ const TaskHistoryScreen: React.FC<TaskHistoryScreenProps> = ({ userProfile }) =>
     const fetchHistory = useCallback(async (isInitial = false) => {
         if (isInitial) {
             setIsLoading(true);
-            setLastDoc(null); // Reset cursor on initial/filter refresh
+            setLastDoc(null); // Reset cursor
         } else {
             if (isLoadingMore || !hasMore) return;
             setIsLoadingMore(true);
         }
 
         try {
-            // Calculate dates based on current applied filters
-            // We use startAfterDoc only if it's not an initial load
             const currentStartAfter = isInitial ? null : lastDoc;
             
-            // Fetch records
             const { history: newHistory, lastVisible } = await getTaskHistoryPaginated(
                 userProfile.uid, 
                 currentStartAfter,
@@ -139,7 +130,6 @@ const TaskHistoryScreen: React.FC<TaskHistoryScreenProps> = ({ userProfile }) =>
                 appliedEnd
             );
 
-            // Fetch count only on initial load of filter change
             if (isInitial) {
                  const count = await getTaskHistoryCount(userProfile.uid, appliedStart, appliedEnd);
                  setTotalCount(count);
@@ -161,7 +151,7 @@ const TaskHistoryScreen: React.FC<TaskHistoryScreenProps> = ({ userProfile }) =>
         }
     }, [userProfile.uid, lastDoc, isLoadingMore, hasMore, appliedStart, appliedEnd]);
 
-    // Intersection Observer for Infinite Scroll
+    // Intersection Observer
     useEffect(() => {
         const element = observerTarget.current;
         if (!element || isLoading || !hasMore) return;
@@ -182,31 +172,11 @@ const TaskHistoryScreen: React.FC<TaskHistoryScreenProps> = ({ userProfile }) =>
         };
     }, [fetchHistory, hasMore, isLoading, isLoadingMore]);
 
-    // Apply Filters Handler
-    const applyFilters = () => {
-        const { start, end } = calculateDateRange(dateRange, customStartDate, customEndDate);
-        setAppliedStart(start);
-        setAppliedEnd(end);
-        setAppliedDateRange(dateRange);
-        setIsFilterOpen(false);
-    };
-    
-    const resetFilters = () => {
-        setDateRange('All');
-        setCustomStartDate('');
-        setCustomEndDate('');
-        setTaskType('All');
-        setAppliedStart(undefined);
-        setAppliedEnd(undefined);
-        setAppliedDateRange('All');
-        setIsFilterOpen(false);
-    };
-
     // Trigger fetch when applied date filters change
     useEffect(() => {
         fetchHistory(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [appliedStart, appliedEnd]); // Depend on the calculated dates
+    }, [appliedStart, appliedEnd]);
 
     // Filter logic for Client-Side filtering of Task Type
     const filteredHistory = useMemo(() => {
@@ -233,21 +203,37 @@ const TaskHistoryScreen: React.FC<TaskHistoryScreenProps> = ({ userProfile }) =>
         });
     }, [history, taskType]);
 
-    // Display Count logic: 
-    // If filtering by Task Type (Client side), show the length of filtered array.
-    // If Task Type is All, show the server-side total count for the date range.
     const displayCount = taskType === 'All' ? totalCount : filteredHistory.length;
 
+    const applyFilters = () => {
+        const { start, end } = calculateDateRange(dateRange, customStartDate, customEndDate);
+        setAppliedStart(start);
+        setAppliedEnd(end);
+        setAppliedDateRange(dateRange);
+        setIsFilterOpen(false);
+    };
+    
+    const resetFilters = () => {
+        setDateRange('All');
+        setCustomStartDate('');
+        setCustomEndDate('');
+        setTaskType('All');
+        setAppliedStart(undefined);
+        setAppliedEnd(undefined);
+        setAppliedDateRange('All');
+        setIsFilterOpen(false);
+    };
+
     return (
-        <div className="flex flex-col h-full bg-gray-50">
-            <div className="p-4 border-b border-gray-200 bg-white sticky top-0 z-10 shadow-sm">
+        <div className="flex flex-col h-full bg-[var(--gray-light)]">
+            <div className="p-4 border-b border-[var(--border-color)] bg-[var(--bg-card)] sticky top-0 z-10 shadow-sm">
                 <div className="flex justify-between items-center">
-                    <h1 className="text-lg font-bold text-gray-800">
-                        Task History {displayCount !== null && <span className="text-sm font-medium text-gray-500 ml-1">({displayCount})</span>}
+                    <h1 className="text-lg font-bold text-[var(--dark)]">
+                        Task History {displayCount !== null && <span className="text-sm font-medium text-[var(--gray)] ml-1">({displayCount})</span>}
                     </h1>
                     <button 
                         onClick={() => setIsFilterOpen(!isFilterOpen)}
-                        className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isFilterOpen || dateRange !== 'All' || taskType !== 'All' ? 'bg-blue-100 text-[var(--primary)]' : 'bg-gray-100 text-gray-600'}`}
+                        className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isFilterOpen || dateRange !== 'All' || taskType !== 'All' ? 'bg-blue-100 text-[var(--primary)]' : 'bg-[var(--bg-input)] text-[var(--gray)]'}`}
                     >
                         <i className="fa-solid fa-filter"></i>
                     </button>
@@ -272,7 +258,7 @@ const TaskHistoryScreen: React.FC<TaskHistoryScreenProps> = ({ userProfile }) =>
                                     <button
                                         key={opt.id}
                                         onClick={() => setDateRange(opt.id as DateRangeOption)}
-                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${dateRange === opt.id ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${dateRange === opt.id ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-[var(--bg-card)] text-[var(--gray)] border-[var(--border-color)] hover:bg-[var(--bg-card-hover)]'}`}
                                     >
                                         {opt.label}
                                     </button>
@@ -285,14 +271,14 @@ const TaskHistoryScreen: React.FC<TaskHistoryScreenProps> = ({ userProfile }) =>
                                         type="date" 
                                         value={customStartDate}
                                         onChange={(e) => setCustomStartDate(e.target.value)}
-                                        className="w-1/2 p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[var(--primary)]"
+                                        className="w-1/2 p-2 border border-[var(--border-color)] rounded-lg text-sm focus:outline-none focus:border-[var(--primary)] bg-[var(--bg-input)] text-[var(--dark)]"
                                     />
                                     <span className="text-gray-400">-</span>
                                     <input 
                                         type="date" 
                                         value={customEndDate}
                                         onChange={(e) => setCustomEndDate(e.target.value)}
-                                        className="w-1/2 p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-[var(--primary)]"
+                                        className="w-1/2 p-2 border border-[var(--border-color)] rounded-lg text-sm focus:outline-none focus:border-[var(--primary)] bg-[var(--bg-input)] text-[var(--dark)]"
                                     />
                                 </div>
                             )}
@@ -306,7 +292,7 @@ const TaskHistoryScreen: React.FC<TaskHistoryScreenProps> = ({ userProfile }) =>
                                     <button
                                         key={type}
                                         onClick={() => setTaskType(type as TaskTypeOption)}
-                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${taskType === type ? 'bg-[var(--secondary)] text-white border-[var(--secondary)]' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${taskType === type ? 'bg-[var(--secondary)] text-white border-[var(--secondary)]' : 'bg-[var(--bg-card)] text-[var(--gray)] border-[var(--border-color)] hover:bg-[var(--bg-card-hover)]'}`}
                                     >
                                         {type}
                                     </button>
@@ -318,7 +304,7 @@ const TaskHistoryScreen: React.FC<TaskHistoryScreenProps> = ({ userProfile }) =>
                         <div className="flex gap-3 pt-2">
                             <button 
                                 onClick={resetFilters}
-                                className="flex-1 py-2 text-sm font-bold text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                                className="flex-1 py-2 text-sm font-bold text-[var(--gray)] bg-[var(--bg-input)] rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
                             >
                                 Reset
                             </button>
@@ -351,7 +337,7 @@ const TaskHistoryScreen: React.FC<TaskHistoryScreenProps> = ({ userProfile }) =>
 
             <div className="flex-1 overflow-y-auto">
                  {isLoading ? (
-                    <div className="text-center p-8 text-gray-500">
+                    <div className="text-center p-8 text-[var(--gray)]">
                         <i className="fa-solid fa-spinner fa-spin text-4xl"></i>
                     </div>
                  ) : filteredHistory.length > 0 ? (
@@ -364,25 +350,25 @@ const TaskHistoryScreen: React.FC<TaskHistoryScreenProps> = ({ userProfile }) =>
                         {hasMore && (
                             <div ref={observerTarget} className="py-6 flex justify-center items-center">
                                 {isLoadingMore ? (
-                                    <div className="flex items-center text-gray-500 text-sm">
+                                    <div className="flex items-center text-[var(--gray)] text-sm">
                                         <i className="fa-solid fa-spinner fa-spin mr-2"></i>
                                         Loading more...
                                     </div>
                                 ) : (
-                                    <div className="h-4"></div> // Invisible spacer to trigger observer
+                                    <div className="h-4"></div> 
                                 )}
                             </div>
                         )}
 
                         {!hasMore && (
-                            <div className="pt-8 pb-24 text-center text-gray-400 flex flex-col items-center justify-center opacity-60">
+                            <div className="pt-8 pb-24 text-center text-[var(--gray)] flex flex-col items-center justify-center opacity-60">
                                 <i className="fa-regular fa-circle-check text-2xl mb-2"></i>
                                 <p className="text-sm font-medium">No more history</p>
                             </div>
                         )}
                     </>
                  ) : (
-                    <div className="text-center p-8 text-gray-500">
+                    <div className="text-center p-8 text-[var(--gray)]">
                         <i className="fa-solid fa-filter-circle-xmark text-4xl mb-4 text-gray-300"></i>
                         <p>No records found.</p>
                         <p className="text-sm">Try adjusting your filters.</p>

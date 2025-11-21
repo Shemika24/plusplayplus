@@ -27,6 +27,7 @@ const rewardTiers: RewardTier[] = [
     { reward: 300, invites: 20000, days: 365 },
 ];
 
+const POINTS_PER_DOLLAR = 142857;
 
 const CircularProgress: React.FC<{ progress: number }> = ({ progress }) => {
     const radius = 55; // Increased from 45 for a larger circle
@@ -110,7 +111,7 @@ const ReferFriendBonusScreen: React.FC<ReferFriendBonusScreenProps> = ({ userPro
 
     const handleClaimReward = (tier: RewardTier) => {
         if (currentUserInvites >= tier.invites && !claimedTiers.includes(tier.invites)) {
-            const pointsReward = tier.reward * 83500;
+            const pointsReward = tier.reward * POINTS_PER_DOLLAR;
             onEarnPoints(pointsReward, `Referral Bonus: ${tier.invites} invites`, 'fa-solid fa-users', 'text-sky-500');
             
             alert(`Congratulations! You've claimed a $${tier.reward} reward!`);

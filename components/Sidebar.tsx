@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { SidebarProps, Screen } from '../types';
 
@@ -42,7 +43,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar */}
       <div
-        className={`fixed top-0 left-0 h-full w-64 bg-white shadow-xl z-[95] transform transition-transform duration-300 ease-in-out
+        className={`fixed top-0 left-0 h-full w-64 bg-[var(--bg-card)] shadow-xl z-[95] transform transition-transform duration-300 ease-in-out
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
         role="dialog"
         aria-modal="true"
@@ -60,13 +61,13 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* Main Navigation */}
-          <nav className="flex-grow p-4 space-y-2 overflow-y-auto">
+          <nav className="flex-grow p-4 space-y-2 overflow-y-auto bg-[var(--bg-card)]">
             {menuItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => navigateTo(item.id)}
-                className={`flex items-center gap-4 w-full p-3 rounded-lg text-left transition-colors hover:bg-gray-100
-                  ${currentScreen === item.id ? 'bg-blue-50 text-[var(--primary)] font-bold' : 'text-[var(--dark)]'}`}
+                className={`flex items-center gap-4 w-full p-3 rounded-lg text-left transition-colors hover:bg-[var(--bg-card-hover)]
+                  ${currentScreen === item.id ? 'bg-blue-50 dark:bg-blue-900/20 text-[var(--primary)] font-bold' : 'text-[var(--dark)]'}`}
                 aria-current={currentScreen === item.id ? 'page' : undefined}
               >
                 <i className={`${item.icon} text-xl w-6 text-center`}></i>
@@ -75,15 +76,15 @@ const Sidebar: React.FC<SidebarProps> = ({
             ))}
 
             {/* Divider */}
-            <hr className="my-4 border-gray-200" />
+            <hr className="my-4 border-[var(--border-color)]" />
 
             {/* Secondary Actions */}
             {secondaryMenuItems.map((item, index) => (
               <button
                 key={index}
                 onClick={item.action}
-                className={`flex items-center gap-4 w-full p-3 rounded-lg text-left transition-colors hover:bg-gray-100
-                  ${item.isLogout ? 'text-[var(--error)] hover:bg-red-50' : 'text-[var(--dark)]'}`}
+                className={`flex items-center gap-4 w-full p-3 rounded-lg text-left transition-colors hover:bg-[var(--bg-card-hover)]
+                  ${item.isLogout ? 'text-[var(--error)] hover:bg-red-50 dark:hover:bg-red-900/20' : 'text-[var(--dark)]'}`}
               >
                 <i className={`${item.icon} text-xl w-6 text-center`}></i>
                 <span className="text-base">{item.label}</span>
@@ -92,7 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           </nav>
 
           {/* Footer */}
-          <div className="p-4 border-t border-gray-200 text-center text-[var(--gray)] text-sm flex-shrink-0">
+          <div className="p-4 border-t border-[var(--border-color)] text-center text-[var(--gray)] text-sm flex-shrink-0 bg-[var(--bg-card)]">
             DYVERZE ADS v2.1.0
           </div>
         </div>

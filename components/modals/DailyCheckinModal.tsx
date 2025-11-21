@@ -115,18 +115,20 @@ const DailyCheckinModal: React.FC<DailyCheckinModalProps> = ({ onClose, onEarnPo
     useEffect(() => {
         if (!userProfile) return;
 
-        // Use server date formatted "YYYY-MM-DD" for consistency
-        const todayStr = new Date().toLocaleDateString("en-CA"); 
+        // Use server date formatted "YYYY-MM-DD" for consistency, strictly Africa/Maputo
+        const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Maputo" }); 
         const lastClaimDateStr = userProfile.dailyCheckIn?.lastDate || "";
         const currentStreak = userProfile.dailyCheckIn?.streak || 0;
 
         let effectiveStreak = currentStreak;
         let hasClaimedToday = lastClaimDateStr === todayStr;
 
-        // Naive check if streak is broken (simple approximation if dates are standard)
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toLocaleDateString("en-CA");
+        // Naive check if streak is broken
+        // Calculate "Yesterday" in Maputo Time
+        const nowInMaputo = new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Maputo" }));
+        const yesterdayInMaputo = new Date(nowInMaputo);
+        yesterdayInMaputo.setDate(yesterdayInMaputo.getDate() - 1);
+        const yesterdayStr = yesterdayInMaputo.toLocaleDateString("en-CA");
 
         if (!hasClaimedToday && lastClaimDateStr !== yesterdayStr && lastClaimDateStr !== "") {
             effectiveStreak = 0;
@@ -197,7 +199,7 @@ const DailyCheckinModal: React.FC<DailyCheckinModalProps> = ({ onClose, onEarnPo
         }
 
         try {
-            const todayStr = new Date().toLocaleDateString("en-CA");
+            const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Maputo" });
             // Calculate new streak
             const currentStreak = userProfile.dailyCheckIn?.streak || 0;
             const newStreak = (currentStreak >= 7) ? 1 : currentStreak + 1;

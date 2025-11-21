@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { RankedUser, UserProfile } from '../types';
 import { getRankings } from '../services/firestoreService';
@@ -16,8 +15,8 @@ const TopRankerCard: React.FC<{ user: RankedUser, medalColor: string, icon: stri
         {user.avatar ? (
             <img src={user.avatar} alt={user.name} className="w-20 h-20 rounded-full border-4 border-white shadow-lg mb-2 bg-gray-300 object-cover" />
         ) : (
-             <div className="w-20 h-20 rounded-full border-4 border-white shadow-lg mb-2 bg-gray-300 flex items-center justify-center">
-                <i className="fa-solid fa-user text-4xl text-gray-500"></i>
+             <div className="w-20 h-20 rounded-full border-4 border-white shadow-lg mb-2 bg-white/20 flex items-center justify-center">
+                <i className="fa-solid fa-user text-4xl text-white"></i>
             </div>
         )}
         <p className="font-bold text-white text-sm text-center">{user.name}</p>
@@ -26,17 +25,17 @@ const TopRankerCard: React.FC<{ user: RankedUser, medalColor: string, icon: stri
 );
 
 const RankListItem: React.FC<{ user: RankedUser }> = ({ user }) => (
-    <div className={`flex items-center p-3 rounded-lg ${user.isCurrentUser ? 'bg-blue-100 border-2 border-blue-400' : 'bg-white'}`}>
-        <span className="font-bold text-gray-500 w-8 text-center">{user.rank}</span>
+    <div className={`flex items-center p-3 rounded-lg border ${user.isCurrentUser ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-400' : 'bg-[var(--bg-card)] border-[var(--border-color)]'}`}>
+        <span className="font-bold text-[var(--gray)] w-8 text-center">{user.rank}</span>
         {user.avatar ? (
             <img src={user.avatar} alt={user.name} className="w-10 h-10 rounded-full mx-3 bg-gray-300 object-cover" />
         ) : (
-            <div className="w-10 h-10 rounded-full mx-3 bg-gray-400 flex items-center justify-center">
-                <i className="fa-solid fa-user text-xl text-white"></i>
+            <div className="w-10 h-10 rounded-full mx-3 bg-[var(--bg-input)] flex items-center justify-center">
+                <i className="fa-solid fa-user text-xl text-[var(--gray)]"></i>
             </div>
         )}
-        <p className="flex-grow font-semibold text-gray-800">{user.name}</p>
-        <p className="font-bold text-blue-600">{user.points.toLocaleString()} pts</p>
+        <p className="flex-grow font-semibold text-[var(--dark)]">{user.name}</p>
+        <p className="font-bold text-[var(--primary)]">{user.points.toLocaleString()} pts</p>
     </div>
 );
 
@@ -47,7 +46,6 @@ const RankScreen: React.FC<RankScreenProps> = ({ currentUserProfile }) => {
     useEffect(() => {
         const fetchRankings = async () => {
             setIsLoading(true);
-            // Pass current user's UID to identify them in the rankings
             const fetchedRankings = await getRankings(currentUserProfile.uid);
             setRankings(fetchedRankings);
             setIsLoading(false);
@@ -59,9 +57,9 @@ const RankScreen: React.FC<RankScreenProps> = ({ currentUserProfile }) => {
     const others = rankings.slice(3);
 
     return (
-        <div className="pb-24 text-[var(--dark)] min-h-full">
+        <div className="pb-24 text-[var(--dark)] min-h-full bg-[var(--gray-light)]">
             {/* Top 3 Podium */}
-            <div className="bg-gradient-to-b from-[#4a6bff] to-[#3a5bef] p-6 pt-10 rounded-b-3xl shadow-lg">
+            <div className="bg-gradient-to-b from-[var(--primary)] to-[var(--primary-dark)] p-6 pt-10 rounded-b-3xl shadow-lg">
                 <h2 className="text-2xl font-bold text-white text-center mb-6">Top Earners</h2>
                 <div className="flex justify-center items-end space-x-4 h-40">
                     {isLoading ? (
@@ -84,15 +82,15 @@ const RankScreen: React.FC<RankScreenProps> = ({ currentUserProfile }) => {
             <div className="p-4 space-y-3">
                  {isLoading ? (
                     Array.from({length: 5}).map((_, i) => (
-                        <div key={i} className="flex items-center p-3 rounded-lg bg-white animate-pulse">
-                            <div className="w-8 h-6 bg-gray-200 rounded"></div>
-                            <div className="w-10 h-10 rounded-full mx-3 bg-gray-200"></div>
-                            <div className="flex-grow h-6 bg-gray-200 rounded"></div>
-                            <div className="w-20 h-6 bg-gray-200 rounded"></div>
+                        <div key={i} className="flex items-center p-3 rounded-lg bg-[var(--bg-card)] animate-pulse">
+                            <div className="w-8 h-6 bg-[var(--bg-input)] rounded"></div>
+                            <div className="w-10 h-10 rounded-full mx-3 bg-[var(--bg-input)]"></div>
+                            <div className="flex-grow h-6 bg-[var(--bg-input)] rounded"></div>
+                            <div className="w-20 h-6 bg-[var(--bg-input)] rounded"></div>
                         </div>
                     ))
                  ) : rankings.length === 0 ? (
-                    <div className="text-center p-8 text-gray-500">
+                    <div className="text-center p-8 text-[var(--gray)]">
                         <i className="fa-solid fa-ranking-star text-4xl mb-4"></i>
                         <p>The leaderboard is currently empty.</p>
                         <p className="text-sm">Be the first to get on the board!</p>

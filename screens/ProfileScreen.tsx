@@ -1,5 +1,4 @@
 
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { UserProfile, NotificationPreferences, PrivacySettings, PaymentDetails } from '../types';
 import { updateUserProfile, deleteUserData } from '../services/firestoreService';
@@ -24,6 +23,42 @@ interface ApiCountry {
     flags: { svg: string };
 }
 
+const LANGUAGES = [
+    { code: 'en', name: 'English', flag: '🇺🇸' },
+    { code: 'pt', name: 'Português', flag: '🇧🇷' },
+    { code: 'es', name: 'Español', flag: '🇪🇸' },
+    { code: 'fr', name: 'Français', flag: '🇫🇷' },
+    { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+    { code: 'id', name: 'Bahasa Indonesia', flag: '🇮🇩' },
+    { code: 'hi', name: 'Hindi', flag: '🇮🇳' },
+    { code: 'ru', name: 'Russian', flag: '🇷🇺' },
+    { code: 'ar', name: 'Arabic', flag: '🇸🇦' },
+    { code: 'zh-CN', name: 'Chinese', flag: '🇨🇳' },
+];
+
+const FALLBACK_COUNTRIES: Country[] = [
+    { name: "United States", code: "+1", flagUrl: "https://flagcdn.com/us.svg" },
+    { name: "United Kingdom", code: "+44", flagUrl: "https://flagcdn.com/gb.svg" },
+    { name: "Canada", code: "+1", flagUrl: "https://flagcdn.com/ca.svg" },
+    { name: "Australia", code: "+61", flagUrl: "https://flagcdn.com/au.svg" },
+    { name: "Germany", code: "+49", flagUrl: "https://flagcdn.com/de.svg" },
+    { name: "France", code: "+33", flagUrl: "https://flagcdn.com/fr.svg" },
+    { name: "Spain", code: "+34", flagUrl: "https://flagcdn.com/es.svg" },
+    { name: "Italy", code: "+39", flagUrl: "https://flagcdn.com/it.svg" },
+    { name: "Portugal", code: "+351", flagUrl: "https://flagcdn.com/pt.svg" },
+    { name: "India", code: "+91", flagUrl: "https://flagcdn.com/in.svg" },
+    { name: "Brazil", code: "+55", flagUrl: "https://flagcdn.com/br.svg" },
+    { name: "Japan", code: "+81", flagUrl: "https://flagcdn.com/jp.svg" },
+    { name: "China", code: "+86", flagUrl: "https://flagcdn.com/cn.svg" },
+    { name: "Russia", code: "+7", flagUrl: "https://flagcdn.com/ru.svg" },
+    { name: "South Africa", code: "+27", flagUrl: "https://flagcdn.com/za.svg" },
+    { name: "Nigeria", code: "+234", flagUrl: "https://flagcdn.com/ng.svg" },
+    { name: "Mexico", code: "+52", flagUrl: "https://flagcdn.com/mx.svg" },
+    { name: "Indonesia", code: "+62", flagUrl: "https://flagcdn.com/id.svg" },
+    { name: "Argentina", code: "+54", flagUrl: "https://flagcdn.com/ar.svg" },
+    { name: "Colombia", code: "+57", flagUrl: "https://flagcdn.com/co.svg" },
+];
+
 // --- Sub-Components ---
 const InfoRow: React.FC<{ icon: string; label: string; value: string; isEditable?: boolean; onChange?: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void; name?: string; type?: string; as?: 'textarea' }> = 
 ({ icon, label, value, isEditable = false, onChange, name, type = 'text', as }) => {
@@ -34,10 +69,10 @@ const InfoRow: React.FC<{ icon: string; label: string; value: string; isEditable
             id: name,
             value: value || '',
             onChange,
-            className: "mt-1 w-full p-2 bg-[var(--gray-light)] border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition"
+            className: "mt-1 w-full p-2 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition text-[var(--dark)]"
         };
         return (
-            <div className="flex items-start py-3 border-b border-gray-100 last:border-b-0">
+            <div className="flex items-start py-3 border-b border-[var(--border-color)] last:border-b-0">
                 <i className={`${icon} text-[var(--gray)] w-6 text-center mr-4 pt-3`}></i>
                 <div className="w-full">
                     <label htmlFor={name} className="text-xs text-[var(--gray)]">{label}</label>
@@ -52,7 +87,7 @@ const InfoRow: React.FC<{ icon: string; label: string; value: string; isEditable
     }
     
     return (
-        <div className="flex items-center py-3 border-b border-gray-100 last:border-b-0">
+        <div className="flex items-center py-3 border-b border-[var(--border-color)] last:border-b-0">
             <i className={`${icon} text-[var(--gray)] w-6 text-center mr-4`}></i>
             <div>
                 <p className="text-xs text-[var(--gray)]">{label}</p>
@@ -64,9 +99,9 @@ const InfoRow: React.FC<{ icon: string; label: string; value: string; isEditable
 
 
 const SettingsRow: React.FC<{ icon: string; label: string; onClick?: () => void; isDestructive?: boolean; value?: string | React.ReactNode }> = ({ icon, label, onClick, isDestructive = false, value }) => (
-    <button onClick={onClick} className={`w-full flex items-center justify-between py-3.5 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors duration-200 rounded-lg`}>
+    <button onClick={onClick} className={`w-full flex items-center justify-between py-3.5 border-b border-[var(--border-color)] last:border-b-0 hover:bg-[var(--bg-card-hover)] transition-colors duration-200 rounded-lg`}>
         <div className="flex items-center flex-1 min-w-0">
-             <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${isDestructive ? 'bg-red-50' : 'bg-gray-100'}`}>
+             <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${isDestructive ? 'bg-red-50 dark:bg-red-900/20' : 'bg-[var(--bg-input)]'}`}>
                 <i className={`${icon} ${isDestructive ? 'text-red-500' : 'text-[var(--dark)]'}`}></i>
             </div>
             <div className="text-left flex-1 min-w-0">
@@ -158,14 +193,14 @@ const ChangePasswordModal: React.FC<{ isOpen: boolean; onClose: () => void }> = 
                                 type={showCurrentPassword ? "text" : "password"}
                                 value={currentPassword}
                                 onChange={(e) => setCurrentPassword(e.target.value)}
-                                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none"
+                                className="w-full p-3 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none text-[var(--dark)]"
                                 placeholder="Enter current password"
                                 required
                             />
                              <button
                                 type="button"
                                 onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                                className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                                className="absolute right-3 top-3 text-[var(--gray)] hover:text-[var(--dark)]"
                             >
                                 <i className={`fa-solid ${showCurrentPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                             </button>
@@ -179,14 +214,14 @@ const ChangePasswordModal: React.FC<{ isOpen: boolean; onClose: () => void }> = 
                                 type={showNewPassword ? "text" : "password"}
                                 value={newPassword}
                                 onChange={(e) => setNewPassword(e.target.value)}
-                                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none"
+                                className="w-full p-3 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none text-[var(--dark)]"
                                 placeholder="Enter new password (min. 6 chars)"
                                 required
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowNewPassword(!showNewPassword)}
-                                className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                                className="absolute right-3 top-3 text-[var(--gray)] hover:text-[var(--dark)]"
                             >
                                 <i className={`fa-solid ${showNewPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                             </button>
@@ -199,7 +234,7 @@ const ChangePasswordModal: React.FC<{ isOpen: boolean; onClose: () => void }> = 
                             type="password"
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
-                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none"
+                            className="w-full p-3 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none text-[var(--dark)]"
                             placeholder="Re-enter new password"
                             required
                         />
@@ -279,7 +314,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ isOpe
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          className="mt-4 w-full p-3 bg-[var(--gray-light)] border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--error)] focus:outline-none transition text-center"
+          className="mt-4 w-full p-3 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--error)] focus:outline-none transition text-center text-[var(--dark)]"
           placeholder={CONFIRMATION_TEXT}
           disabled={isDeleting}
         />
@@ -297,7 +332,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ isOpe
           <button
             onClick={handleClose}
             disabled={isDeleting}
-            className="w-full font-bold py-3 rounded-xl shadow-lg transition-transform hover:scale-105 bg-gray-200 text-[var(--dark)] disabled:opacity-50"
+            className="w-full font-bold py-3 rounded-xl shadow-lg transition-transform hover:scale-105 bg-gray-200 text-gray-800 disabled:opacity-50"
           >
             Cancel
           </button>
@@ -324,6 +359,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
     const [countrySearch, setCountrySearch] = useState('');
     const [isLoadingCountries, setIsLoadingCountries] = useState(true);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const languageDropdownRef = useRef<HTMLDivElement>(null);
+    const [isLanguageDropdownOpen, setIsLanguageDropdownOpen] = useState(false);
+    const [isChangingLanguage, setIsChangingLanguage] = useState(false);
     
     const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
     const [settingsModalContent, setSettingsModalContent] = useState<{ title: string; message: string } | null>(null);
@@ -331,7 +369,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
     const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
     const [isPaymentMethodModalOpen, setIsPaymentMethodModalOpen] = useState(false);
     
-    // New state for change password modal
     const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
 
     const { canEditPhone, timeLeftForPhoneEdit } = useMemo(() => {
@@ -375,21 +412,21 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                     .filter(c => c.idd?.root && c.idd.suffixes)
                     .flatMap(c => {
                         const root = c.idd.root;
-                        // Handle cases like USA with multiple suffixes
                         return c.idd.suffixes!.map(suffix => ({
                             name: c.name.common,
                             code: `${root}${suffix}`,
                             flagUrl: c.flags.svg
                         }));
                     })
-                    .filter((c, index, self) => index === self.findIndex((t) => (t.code === c.code && t.name === c.name))) // Ensure unique
+                    .filter((c, index, self) => index === self.findIndex((t) => (t.code === c.code && t.name === c.name))) 
                     .sort((a, b) => a.name.localeCompare(b.name));
                 
                 setCountries(formattedCountries);
                 setSelectedCountry(formattedCountries.find(c => c.code === '+1') || formattedCountries[0]);
             } catch (error) {
-                console.error("Could not fetch country codes:", error);
-                // Fallback or error state can be handled here
+                console.error("Could not fetch country codes, using fallback:", error);
+                setCountries(FALLBACK_COUNTRIES);
+                setSelectedCountry(FALLBACK_COUNTRIES[0]);
             } finally {
                 setIsLoadingCountries(false);
             }
@@ -403,6 +440,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                 setIsDropdownOpen(false);
+            }
+            if (languageDropdownRef.current && !languageDropdownRef.current.contains(event.target as Node)) {
+                setIsLanguageDropdownOpen(false);
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
@@ -479,7 +519,41 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
     const handleDeleteAccount = async () => {
         await deleteUserData(userProfile.uid);
         await deleteCurrentUser();
-        // After this, onAuthStateChanged in App.tsx will handle navigation to AuthScreen
+    };
+
+    const handleLanguageChange = async (langCode: string) => {
+        if (langCode === userProfile.language) {
+            setIsLanguageDropdownOpen(false);
+            return;
+        }
+
+        setIsChangingLanguage(true);
+        setIsLanguageDropdownOpen(false);
+        try {
+            await updateUserProfile(userProfile.uid, { language: langCode });
+            onProfileUpdate({ language: langCode });
+            
+            const domain = window.location.hostname === 'localhost' ? '' : `domain=.${window.location.hostname};`;
+            document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; ${domain}`;
+
+            if (langCode !== 'en') {
+                const cookieValue = `/en/${langCode}`;
+                document.cookie = `googtrans=${cookieValue}; path=/;`;
+                if (window.location.hostname !== 'localhost') {
+                    document.cookie = `googtrans=${cookieValue}; path=/; domain=${window.location.hostname}`;
+                }
+            }
+            
+            setTimeout(() => {
+                window.location.reload();
+            }, 500);
+
+        } catch (e) {
+            console.error("Failed to change language", e);
+            setIsChangingLanguage(false);
+            alert("Failed to change language. Please try again.");
+        }
     };
 
     const filteredCountries = countries.filter(c =>
@@ -496,19 +570,21 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
         return `${methods.length} Methods Linked`;
     };
 
+    const currentLanguage = LANGUAGES.find(l => l.code === userProfile.language) || LANGUAGES[0];
+
     return (
-        <div className="bg-gray-50 pb-24 min-h-full">
+        <div className="bg-[var(--gray-light)] pb-24 min-h-full transition-colors duration-300">
             {/* Profile Header */}
-            <div className="bg-gradient-to-b from-white to-gray-50 p-6 flex flex-col items-center text-center border-b border-gray-200">
+            <div className="bg-gradient-to-b from-[var(--bg-card)] to-[var(--bg-card)] p-6 flex flex-col items-center text-center border-b border-[var(--border-color)]">
                 <div className="relative">
                     {userProfile.avatarUrl ? (
-                         <img src={userProfile.avatarUrl} alt="User Avatar" className="w-24 h-24 rounded-full border-4 border-white shadow-lg bg-gray-300 object-cover" />
+                         <img src={userProfile.avatarUrl} alt="User Avatar" className="w-24 h-24 rounded-full border-4 border-[var(--bg-card)] shadow-lg bg-gray-300 object-cover" />
                     ) : (
-                        <div className="w-24 h-24 rounded-full border-4 border-white shadow-lg bg-gray-300 flex items-center justify-center">
+                        <div className="w-24 h-24 rounded-full border-4 border-[var(--bg-card)] shadow-lg bg-gray-300 flex items-center justify-center">
                             <i className="fa-solid fa-user text-5xl text-gray-500"></i>
                         </div>
                     )}
-                    <button className="absolute -bottom-1 -right-1 w-8 h-8 bg-[var(--primary)] text-white rounded-full flex items-center justify-center border-2 border-white shadow-md hover:bg-[var(--primary-dark)] transition-colors">
+                    <button className="absolute -bottom-1 -right-1 w-8 h-8 bg-[var(--primary)] text-white rounded-full flex items-center justify-center border-2 border-[var(--bg-card)] shadow-md hover:bg-[var(--primary-dark)] transition-colors">
                         <i className="fa-solid fa-camera"></i>
                     </button>
                 </div>
@@ -519,7 +595,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
 
             <div className="p-4 md:p-6 space-y-6">
                 {/* Personal Information */}
-                <div className="bg-white rounded-xl shadow-lg p-4">
+                <div className="bg-[var(--bg-card)] rounded-xl shadow-lg p-4 border border-[var(--border-color)]">
                     <div className="flex justify-between items-center mb-2 px-1">
                         <div className="flex items-center gap-2">
                            <h3 className="font-bold text-lg text-[var(--dark)]">Personal Information</h3>
@@ -537,7 +613,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                                 </button>
                             </div>
                         ) : (
-                            <button onClick={() => setIsEditing(true)} className="text-[var(--primary)] hover:text-[var(--primary-dark)] text-lg w-8 h-8 flex items-center justify-center rounded-full hover:bg-blue-100 transition-colors" aria-label="Edit profile">
+                            <button onClick={() => setIsEditing(true)} className="text-[var(--primary)] hover:text-[var(--primary-dark)] text-lg w-8 h-8 flex items-center justify-center rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/20 transition-colors" aria-label="Edit profile">
                                 <i className="fa-solid fa-pencil"></i>
                             </button>
                         )}
@@ -558,9 +634,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                                     <button 
                                         onClick={() => setIsDropdownOpen(!isDropdownOpen)} 
                                         disabled={!isEditing}
-                                        className="flex items-center justify-center h-10 w-28 bg-gray-100 rounded-l-md border border-r-0 border-gray-300 disabled:bg-gray-200 disabled:cursor-not-allowed"
+                                        className="flex items-center justify-center h-10 w-28 bg-[var(--bg-input)] rounded-l-md border border-r-0 border-[var(--border-color)] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:cursor-not-allowed text-[var(--dark)]"
                                     >
-                                        {isLoadingCountries ? <i className="fa-solid fa-spinner fa-spin"></i> : (
+                                        {isLoadingCountries && !selectedCountry ? <i className="fa-solid fa-spinner fa-spin"></i> : (
                                             selectedCountry && <>
                                                 <img src={selectedCountry.flagUrl} alt="" className="w-5 h-auto mr-2" />
                                                 <span className="text-sm font-semibold">{selectedCountry.code}</span>
@@ -568,17 +644,17 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                                         )}
                                     </button>
                                     {isDropdownOpen && isEditing && (
-                                        <div className="absolute z-10 bottom-full mb-2 w-64 bg-white border border-gray-200 rounded-md shadow-lg">
+                                        <div className="absolute z-10 bottom-full mb-2 w-64 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-md shadow-lg">
                                             <input
                                                 type="text"
                                                 placeholder="Search country..."
                                                 value={countrySearch}
                                                 onChange={(e) => setCountrySearch(e.target.value)}
-                                                className="w-full px-3 py-2 border-b border-gray-200 focus:outline-none"
+                                                className="w-full px-3 py-2 border-b border-[var(--border-color)] focus:outline-none bg-[var(--bg-card)] text-[var(--dark)]"
                                             />
                                             <div className="max-h-48 overflow-y-auto">
                                                 {filteredCountries.map(country => (
-                                                    <button key={country.code + country.name} onClick={() => { setSelectedCountry(country); setIsDropdownOpen(false); setCountrySearch(''); }} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2">
+                                                    <button key={country.code + country.name} onClick={() => { setSelectedCountry(country); setIsDropdownOpen(false); setCountrySearch(''); }} className="w-full text-left px-3 py-2 text-sm text-[var(--dark)] hover:bg-[var(--bg-card-hover)] flex items-center gap-2">
                                                         <img src={country.flagUrl} alt={country.name} className="w-5 h-auto" />
                                                         <span className="truncate">{country.name} ({country.code})</span>
                                                     </button>
@@ -593,7 +669,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                                     value={formData.phone || ''}
                                     onChange={handleFormChange}
                                     disabled={!isEditing || !canEditPhone}
-                                    className="h-10 px-3 w-full border border-gray-300 rounded-r-md text-sm font-semibold text-[var(--dark)] focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--primary)] disabled:bg-gray-200 disabled:cursor-not-allowed" 
+                                    className="h-10 px-3 w-full border border-[var(--border-color)] rounded-r-md text-sm font-semibold text-[var(--dark)] bg-[var(--bg-input)] focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--primary)] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:cursor-not-allowed" 
                                 />
                             </div>
                             {!canEditPhone && isEditing && (
@@ -606,8 +682,36 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                 </div>
 
                 {/* Settings */}
-                <div className="bg-white rounded-xl shadow-lg p-4">
+                <div className="bg-[var(--bg-card)] rounded-xl shadow-lg p-4 border border-[var(--border-color)]">
                      <h3 className="font-bold text-lg text-[var(--dark)] mb-2 px-1">Settings</h3>
+                     
+                     {/* Language Selector */}
+                     <div className="relative" ref={languageDropdownRef}>
+                        <SettingsRow 
+                            icon="fa-solid fa-language" 
+                            label="Language" 
+                            value={isChangingLanguage ? <i className="fa-solid fa-spinner fa-spin"></i> : `${currentLanguage.flag} ${currentLanguage.name}`}
+                            onClick={() => setIsLanguageDropdownOpen(!isLanguageDropdownOpen)}
+                        />
+                        {isLanguageDropdownOpen && (
+                            <div className="absolute z-10 top-full mt-1 w-full bg-[var(--bg-card)] border border-[var(--border-color)] rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                                {LANGUAGES.map((lang) => (
+                                    <button
+                                        key={lang.code}
+                                        onClick={() => handleLanguageChange(lang.code)}
+                                        className={`w-full text-left px-4 py-3 text-sm hover:bg-[var(--bg-card-hover)] border-b border-[var(--border-color)] last:border-b-0 flex items-center justify-between ${userProfile.language === lang.code ? 'bg-blue-50 dark:bg-blue-900/20 text-[var(--primary)] font-bold' : 'text-[var(--dark)]'}`}
+                                    >
+                                        <span className="flex items-center">
+                                            <span className="mr-3 text-lg">{lang.flag}</span>
+                                            {lang.name}
+                                        </span>
+                                        {userProfile.language === lang.code && <i className="fa-solid fa-check"></i>}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                     </div>
+
                      <SettingsRow 
                          icon="fa-solid fa-credit-card" 
                          label="Payment Methods" 
@@ -620,7 +724,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                 </div>
                 
                 {/* Account Actions */}
-                <div className="bg-white rounded-xl shadow-lg p-4">
+                <div className="bg-[var(--bg-card)] rounded-xl shadow-lg p-4 border border-[var(--border-color)]">
                      <SettingsRow icon="fa-solid fa-trash-can" label="Delete Account" isDestructive={true} onClick={() => setIsDeleteModalOpen(true)} />
                 </div>
             </div>

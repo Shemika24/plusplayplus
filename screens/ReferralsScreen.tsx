@@ -33,19 +33,8 @@ const ReferralsScreen: React.FC<ReferralsScreenProps> = ({ userProfile, onBack }
     const [copied, setCopied] = useState(false);
     const { referrals } = userProfile;
 
-    // Detect Telegram environment and user ID
-    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-    const telegramId = tgUser?.id || userProfile.telegramId;
-
-    // Bot Username definition
-    const BOT_USERNAME = "plusplayplus_bot";
-    
-    // Determine the active referral link
-    // ALWAYS use the Telegram Bot link. 
-    // Prioritize Telegram ID, fallback to Firebase UID if Telegram ID is missing.
-    // This prevents the https://dyverze.ads/... link from showing.
-    const referralCode = telegramId ? telegramId : userProfile.uid;
-    const activeReferralLink = `https://t.me/${BOT_USERNAME}?start=${referralCode}`;
+    const referralCode = userProfile.uid;
+    const activeReferralLink = `${window.location.origin}?ref=${referralCode}`;
 
     const handleCopy = async () => {
         try {
@@ -59,35 +48,11 @@ const ReferralsScreen: React.FC<ReferralsScreenProps> = ({ userProfile, onBack }
     };
 
     const handleShare = async () => {
-        // Check if we are in Telegram Web App environment and have a valid ID
-        const webApp = window.Telegram?.WebApp;
-        const text = `🎉 Junte-se a este incrível bot e comece a ganhar! Use meu link para ganhar um bônus especial:`;
-        const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(activeReferralLink)}&text=${encodeURIComponent(text)}`;
-
-        if (webApp) {
-            try {
-                if (webApp.openTelegramLink) {
-                    webApp.openTelegramLink(shareUrl);
-                } else {
-                    // Fallback if openTelegramLink is not available
-                    window.open(shareUrl, '_blank');
-                }
-            } catch (e) {
-                console.warn("Failed to open Telegram link, falling back to native share", e);
-                fallbackShare();
-            }
-        } else {
-            // Standard web fallback
-            fallbackShare();
-        }
-    };
-
-    const fallbackShare = async () => {
         if (navigator.share) {
             try {
                 await navigator.share({
                     title: 'Join DYVERZE ADS!',
-                    text: '🎉 Junte-se a este incrível bot e comece a ganhar! Use meu link para ganhar um bônus especial:',
+                    text: '🎉 Junte-se a este incrível site e comece a ganhar! Use meu link para ganhar um bônus especial:',
                     url: activeReferralLink,
                 });
             } catch (err) {
@@ -100,9 +65,9 @@ const ReferralsScreen: React.FC<ReferralsScreenProps> = ({ userProfile, onBack }
     };
 
     return (
-        <div className="flex flex-col h-full bg-gray-50">
-            <div className="p-4 border-b border-gray-200 bg-white sticky top-0 z-10 flex items-center">
-                <h1 className="text-lg font-bold text-gray-800">
+        <div className="flex flex-col h-full bg-[var(--gray-light)]">
+            <div className="p-4 border-b border-[var(--border-color)] bg-[var(--bg-card)] sticky top-0 z-10 flex items-center">
+                <h1 className="text-lg font-bold text-[var(--dark)]">
                     Referrals
                 </h1>
             </div>
@@ -136,7 +101,7 @@ const ReferralsScreen: React.FC<ReferralsScreenProps> = ({ userProfile, onBack }
                 </div>
 
                 {/* How It Works Section */}
-                <div className="bg-white p-5 rounded-xl shadow-lg">
+                <div className="bg-[var(--bg-card)] p-5 rounded-xl shadow-lg border border-[var(--border-color)]">
                     <h3 className="text-xl font-bold text-[var(--dark)] mb-4">How It Works</h3>
                     <div className="space-y-4">
                         <HowItWorksStep number={1} title="Invite a Friend" description="Share your unique link with friends." color="#82aaff" />
@@ -146,14 +111,14 @@ const ReferralsScreen: React.FC<ReferralsScreenProps> = ({ userProfile, onBack }
                 </div>
 
                 {/* Share Your Link Section */}
-                <div className="bg-white p-5 rounded-xl shadow-lg">
+                <div className="bg-[var(--bg-card)] p-5 rounded-xl shadow-lg border border-[var(--border-color)]">
                     <h3 className="text-xl font-bold text-center text-[var(--dark)] mb-4">Share Your Link</h3>
-                    <div className="w-full text-center bg-gray-100 border border-gray-200 rounded-lg p-3 mb-4 text-[var(--gray)] font-mono text-sm break-all">
+                    <div className="w-full text-center bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg p-3 mb-4 text-[var(--gray)] font-mono text-sm break-all">
                         {activeReferralLink}
                     </div>
                     <button 
                         onClick={handleCopy}
-                        className="w-full flex items-center justify-center bg-gray-200 text-[var(--dark)] font-semibold py-3 rounded-lg mb-3 transition-colors hover:bg-gray-300"
+                        className="w-full flex items-center justify-center bg-[var(--bg-input)] text-[var(--dark)] font-semibold py-3 rounded-lg mb-3 transition-colors hover:bg-[var(--bg-card-hover)] border border-[var(--border-color)]"
                     >
                         <i className={`fa-solid ${copied ? 'fa-check' : 'fa-copy'} mr-2`}></i>
                         {copied ? 'Copied!' : 'Copy Link'}

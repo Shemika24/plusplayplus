@@ -8,6 +8,7 @@ import { onAuthStateChangedListener, signOutUser } from './services/authService'
 import { getUserProfile } from './services/firestoreService';
 import { User } from 'firebase/auth';
 import { UserProfile } from './types';
+import { applyTheme } from './utils/themes';
 
 const App: React.FC = () => {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -29,9 +30,13 @@ const App: React.FC = () => {
         setCurrentUser(user);
         const profile = await getUserProfile(user);
         setUserProfile(profile);
+        if (profile?.theme) {
+            applyTheme(profile.theme);
+        }
       } else {
         setCurrentUser(null);
         setUserProfile(null);
+        applyTheme('light'); // Default to light on logout
       }
       setIsAuthLoading(false);
     });
@@ -44,7 +49,14 @@ const App: React.FC = () => {
   };
   
   const handleProfileUpdate = (updatedData: Partial<UserProfile>) => {
-    setUserProfile(prev => prev ? { ...prev, ...updatedData } : null);
+    setUserProfile(prev => {
+        if (!prev) return null;
+        const newProfile = { ...prev, ...updatedData };
+        if (updatedData.theme) {
+            applyTheme(updatedData.theme);
+        }
+        return newProfile;
+    });
   };
 
   const showSplashScreen = isAuthLoading || !isSplashTimeOver;

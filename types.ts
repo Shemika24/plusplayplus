@@ -63,8 +63,9 @@ export interface PaymentDetails {
 export interface UserProfile {
     uid: string;
     dyverzeId: string;
-    telegramId?: number; // New field to store Telegram ID
     points: number;
+    language: string; // 'en', 'pt', 'es', etc.
+    theme?: string; // 'light' | 'dark'
     
     // User Info
     fullName: string;
@@ -146,40 +147,4 @@ export interface Task {
     description: string;
     duration: number; // in seconds
     points: number;
-}
-
-// --- Telegram Web App Types ---
-export interface TelegramUser {
-    id: number;
-    first_name: string;
-    last_name?: string;
-    username?: string;
-    photo_url?: string;
-    language_code?: string;
-}
-
-declare global {
-    interface Window {
-        Telegram?: {
-            WebApp?: {
-                platform?: string;
-                initData?: string;
-                initDataUnsafe?: {
-                    query_id?: string;
-                    user?: TelegramUser;
-                    auth_date?: string;
-                    hash?: string;
-                };
-                version?: string;
-                isVersionAtLeast: (version: string) => boolean;
-                openTelegramLink: (url: string) => void;
-                openLink: (url: string, options?: { try_instant_view?: boolean }) => void;
-                CloudStorage?: {
-                    setItem: (key: string, value: string, callback?: (error: any, stored: boolean) => void) => void;
-                    getItem: (key: string, callback: (error: any, value: string) => void) => void;
-                    removeItem: (key: string, callback?: (error: any, deleted: boolean) => void) => void;
-                };
-            };
-        };
-    }
 }

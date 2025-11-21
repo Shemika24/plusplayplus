@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import BottomNavBar from './BottomNavBar';
 import Header from './Header';
 import Sidebar from './Sidebar';
@@ -17,7 +17,8 @@ import TaskHistoryScreen from '../screens/TaskHistoryScreen';
 import SpecialOffersScreen from '../screens/SpecialOffersScreen';
 import DailyComboModal from './modals/DailyComboModal';
 import { Screen, TaskHistory, Withdrawal, UserProfile } from '../types';
-import { addTaskHistoryItem, addWithdrawalRequest } from '../services/firestoreService';
+import { addTaskHistoryItem, addWithdrawalRequest, updateUserProfile } from '../services/firestoreService';
+import { toggleTheme } from '../utils/themes';
 
 
 interface HomeScreenProps {
@@ -25,6 +26,8 @@ interface HomeScreenProps {
   onLogout: () => void;
   onProfileUpdate: (data: Partial<UserProfile>) => void;
 }
+
+const POINTS_PER_DOLLAR = 142857;
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, onLogout, onProfileUpdate }) => {
   const [activeTab, setActiveTab] = useState<Screen>('Home');
@@ -43,6 +46,20 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
     }
     setActiveTab(screen);
     setSidebarOpen(false);
+  };
+
+  const handleThemeCycle = async () => {
+      const currentTheme = userProfile.theme || 'light';
+      const newTheme = toggleTheme(currentTheme);
+      
+      // Update local state immediately (App.tsx handles application via onProfileUpdate)
+      onProfileUpdate({ theme: newTheme });
+      
+      try {
+          await updateUserProfile(userProfile.uid, { theme: newTheme });
+      } catch (error) {
+          console.error("Failed to save theme preference:", error);
+      }
   };
   
   const handleBackNavigation = () => {
@@ -67,10 +84,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
           title: title,
           icon,
           iconColor,
-          date: new Date().toLocaleDateString(),
+          date: new Date().toLocaleDateString("en-US", { timeZone: "Africa/Maputo" }),
       };
       
-      // Optimistic UI update for points and task stats
       setUserProfile(prev => ({
         ...prev,
         points: prev.points + points,
@@ -84,7 +100,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
         await addTaskHistoryItem(userProfile.uid, newHistoryItem);
       } catch (e) {
           console.error("Failed to update points:", e);
-          // Revert on failure
            setUserProfile(prev => ({
             ...prev,
             points: prev.points - points,
@@ -98,7 +113,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
   };
 
   const handleNewWithdrawal = async (amount: number, method: string) => {
-    const pointsToDeduct = amount * 83500;
+    const pointsToDeduct = amount * POINTS_PER_DOLLAR;
     if (userProfile.points < pointsToDeduct) {
         alert("Error: Not enough points.");
         return;
@@ -108,10 +123,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
         amount: amount,
         method: method,
         status: 'Pending',
-        date: new Date().toLocaleString(),
+        date: new Date().toLocaleString("en-US", { timeZone: "Africa/Maputo" }),
     };
 
-    // Optimistic UI update for points and withdrawal stats
     setUserProfile(prev => ({
         ...prev,
         points: prev.points - pointsToDeduct,
@@ -126,7 +140,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
         await addWithdrawalRequest(userProfile.uid, newWithdrawalItem);
     } catch (e) {
         console.error("Failed to request withdrawal:", e);
-        // Revert on failure
         setUserProfile(prev => ({
             ...prev,
             points: prev.points + pointsToDeduct,
@@ -161,7 +174,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
       case 'Referrals':
         return <ReferralsScreen userProfile={userProfile} onBack={() => handleNavigation(referralsSource)} />;
       case 'Withdraw':
-        return <WithdrawScreen balance={userProfile.points / 83500} onBack={() => handleNavigation('Wallet')} onNewWithdrawal={handleNewWithdrawal} userProfile={userProfile} />;
+        return <WithdrawScreen balance={userProfile.points / POINTS_PER_DOLLAR} onBack={() => handleNavigation('Wallet')} onNewWithdrawal={handleNewWithdrawal} userProfile={userProfile} />;
       case 'WithdrawalHistory':
         return <WithdrawalHistoryScreen userProfile={userProfile} />;
       case 'TaskHistory':
@@ -173,7 +186,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
   };
 
   return (
-    <div className="h-screen bg-[var(--gray-light)]">
+    <div className="h-screen bg-[var(--gray-light)] transition-colors duration-300">
       <Header 
         userProfile={userProfile} 
         onMenuClick={() => setSidebarOpen(true)}
@@ -181,6 +194,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
         onProfileClick={() => handleNavigation('Profile')}
         activeScreen={activeTab}
         onBackClick={handleBackNavigation}
+        onThemeCycle={handleThemeCycle}
       />
       <Sidebar
         isOpen={isSidebarOpen}
@@ -208,7 +222,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
 
 // Helper component for the restored Home screen dashboard
 const MainDashboardScreen: React.FC<{ userProfile: UserProfile; onNavigate: (screen: Screen) => void; onOpenBonusCode: () => void; }> = ({ userProfile, onNavigate, onOpenBonusCode }) => {
-    const balance = userProfile.points / 83500;
+    const balance = userProfile.points / POINTS_PER_DOLLAR;
     const withdrawalTiers = [5, 10, 25, 50, 100];
 
     const getCurrentWithdrawalGoal = (currentBalance: number): number => {
@@ -228,11 +242,11 @@ const MainDashboardScreen: React.FC<{ userProfile: UserProfile; onNavigate: (scr
     return (
         <div className="p-4 md:p-6 pb-24 text-[var(--dark)]">
             {/* Balance Card */}
-            <div className="bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] rounded-2xl shadow-xl p-5 mb-6 text-white">
+            <div className="bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] rounded-2xl shadow-xl p-5 mb-6 text-white">
                 <div className="flex justify-between items-start">
                     <div>
                         <p className="text-sm opacity-80">Balance:</p>
-                        <p className="text-2xl font-bold">${balance.toFixed(2)}</p>
+                        <p className="text-2xl font-bold">${balance.toFixed(6)}</p>
                     </div>
                     <div className="text-right w-2/5">
                         <div className="w-full bg-white/25 rounded-full h-2 mb-1.5">
@@ -244,14 +258,15 @@ const MainDashboardScreen: React.FC<{ userProfile: UserProfile; onNavigate: (scr
                 </div>
                 <button 
                     onClick={() => onNavigate('Withdraw')}
-                    className="mt-4 w-full flex items-center justify-center py-2 bg-white text-[var(--primary)] font-bold rounded-lg shadow-md hover:bg-gray-100 transition-all duration-300 transform hover:scale-[1.02]">
+                    className="mt-4 w-full flex items-center justify-center py-2 bg-white text-[var(--primary)] font-bold rounded-lg shadow-md hover:bg-gray-50 transition-all duration-300 transform hover:scale-[1.02]"
+                >
                     <i className="fa-solid fa-money-bill-transfer mr-2"></i>
                     <span>Cashout</span>
                 </button>
             </div>
 
             {/* Account Statistics */}
-            <div className="bg-white rounded-2xl shadow-lg p-4 mb-6">
+            <div className="bg-[var(--bg-card)] rounded-2xl shadow-lg p-4 mb-6 border border-[var(--border-color)] transition-colors duration-300">
                 <h2 className="text-lg font-bold text-[var(--dark)] mb-2 px-2">Account statistics</h2>
                 <ListItem icon={<i className="fa-solid fa-wallet text-green-500 text-xl"></i>} title={`$${totalEarnings.toFixed(2)} USD`} subtitle="Total earnings" />
                 <ListItem icon={<i className="fa-solid fa-clipboard-check text-green-500 text-xl"></i>} title={surveysCompleted.toLocaleString()} subtitle="Tasks Completed" />
@@ -260,7 +275,7 @@ const MainDashboardScreen: React.FC<{ userProfile: UserProfile; onNavigate: (scr
             </div>
 
              {/* Bonus */}
-             <div className="bg-white rounded-2xl shadow-lg p-4 mb-6">
+             <div className="bg-[var(--bg-card)] rounded-2xl shadow-lg p-4 mb-6 border border-[var(--border-color)] transition-colors duration-300">
                 <h2 className="text-lg font-bold text-[var(--dark)] mb-2 px-2">Bonus</h2>
                 <ListItem icon={<i className="fa-solid fa-rocket text-purple-500 text-xl"></i>} title="Refer a Friend" onClick={() => onNavigate('ReferBonus')} />
                 <ListItem icon={<i className="fa-solid fa-ticket text-pink-500 text-xl"></i>} title="Redeem Bonus Code" onClick={onOpenBonusCode} />
@@ -277,17 +292,21 @@ interface ListItemProps {
     onClick?: () => void;
 }
 const ListItem: React.FC<ListItemProps> = ({ icon, title, subtitle, onClick }) => (
-    <button onClick={onClick} disabled={!onClick} className="w-full flex items-center justify-between py-3.5 border-b border-[var(--gray-medium)] last:border-b-0 hover:bg-gray-50 transition-colors duration-200 rounded-lg disabled:cursor-default disabled:hover:bg-transparent">
+    <button 
+        onClick={onClick} 
+        disabled={!onClick} 
+        className="w-full flex items-center justify-between py-3.5 border-b border-[var(--border-color)] last:border-b-0 hover:bg-[var(--bg-card-hover)] transition-colors duration-200 rounded-lg disabled:cursor-default group"
+    >
         <div className="flex items-center">
-            <div className="w-11 h-11 rounded-full bg-[var(--gray-light)] flex items-center justify-center mr-4">
+            <div className="w-11 h-11 rounded-full bg-[var(--bg-input)] flex items-center justify-center mr-4 group-hover:scale-105 transition-transform">
                 {icon}
             </div>
             <div>
                 <p className="font-semibold text-left text-[var(--dark)]">{title}</p>
-                {subtitle && <p className="text-sm text-left text-[var(--gray)]">{subtitle}</p>}
+                {subtitle && <p className="text-sm text-left text-[var(--text-secondary)]">{subtitle}</p>}
             </div>
         </div>
-        {onClick && <i className="fa-solid fa-chevron-right text-[var(--gray)]"></i>}
+        {onClick && <i className="fa-solid fa-chevron-right text-[var(--text-secondary)]"></i>}
     </button>
 );
 

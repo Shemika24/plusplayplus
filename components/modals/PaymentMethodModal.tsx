@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import Modal from '../Modal';
 import { PaymentDetails } from '../../types';
@@ -38,11 +37,11 @@ const cryptocurrencies: CryptoDetails[] = [
 ];
 
 const paymentMethods: MethodConfig[] = [
-    { name: 'PayPal', icon: 'fa-brands fa-paypal', placeholder: 'Enter your PayPal email', colors: { icon: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' } },
-    { name: 'Payeer', icon: 'fa-solid fa-p', placeholder: 'Enter your Payeer ID (P1...)', colors: { icon: 'text-sky-600', bg: 'bg-sky-50', border: 'border-sky-100' } },
-    { name: 'Payoneer', icon: 'fa-brands fa-cc-mastercard', placeholder: 'Enter your Payoneer email', colors: { icon: 'text-red-600', bg: 'bg-red-50', border: 'border-red-100' } },
-    { name: 'Airtm', icon: 'fa-solid fa-cloud', placeholder: 'Enter your Airtm email', colors: { icon: 'text-teal-600', bg: 'bg-teal-50', border: 'border-teal-100' } },
-    { name: 'Crypto', icon: 'fa-solid fa-coins', placeholder: 'Enter your Crypto Wallet Address', colors: { icon: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-100' } },
+    { name: 'PayPal', icon: 'fa-brands fa-paypal', placeholder: 'Enter your PayPal email', colors: { icon: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-100 dark:border-blue-800' } },
+    { name: 'Payeer', icon: 'fa-solid fa-p', placeholder: 'Enter your Payeer ID (P1...)', colors: { icon: 'text-sky-600', bg: 'bg-sky-50 dark:bg-sky-900/20', border: 'border-sky-100 dark:border-sky-800' } },
+    { name: 'Payoneer', icon: 'fa-brands fa-cc-mastercard', placeholder: 'Enter your Payoneer email', colors: { icon: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-100 dark:border-red-800' } },
+    { name: 'Airtm', icon: 'fa-solid fa-cloud', placeholder: 'Enter your Airtm email', colors: { icon: 'text-teal-600', bg: 'bg-teal-50 dark:bg-teal-900/20', border: 'border-teal-100 dark:border-teal-800' } },
+    { name: 'Crypto', icon: 'fa-solid fa-coins', placeholder: 'Enter your Crypto Wallet Address', colors: { icon: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20', border: 'border-purple-100 dark:border-purple-800' } },
 ];
 
 const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose, currentDetails = [], onSave }) => {
@@ -84,11 +83,6 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
         setError('');
         setSuccessMsg('');
 
-        // Try to find existing detail for this method to pre-fill
-        // For Crypto, it's tricky because user can have multiple cryptos. 
-        // For simplicity in this UI, we will pre-fill if they have ONE crypto saved, or empty if none/multiple.
-        // For others (PayPal), just find the entry.
-        
         if (method === 'Crypto') {
             const existingCrypto = currentDetails.find(d => d.method === 'Crypto');
             if (existingCrypto) {
@@ -122,7 +116,6 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
 
         setIsLoading(true);
         try {
-            // Create the new entry
             const newEntry: PaymentDetails = {
                 method: expandedMethod,
                 detail: detailInput.trim(),
@@ -132,26 +125,14 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
                 newEntry.cryptoName = selectedCrypto.name;
             }
 
-            // Logic to update the array:
-            // If method exists (and matches crypto type if applicable), update it.
-            // If standard method (PayPal) exists, overwrite.
-            // If Crypto, if we want to allow multiple different cryptos, we push.
-            // BUT per prompt "define details for each", usually implies one active config per main type or replacing.
-            // Let's adopt: Replace if matches Method Type. Exception: Crypto could potentially be multiples?
-            // To keep UI simple for "Withdraw Screen" selection later, let's enforce Unique Method Type per user for now, 
-            // OR unique combination of Method + CryptoName. 
-            // Let's do: Overwrite existing entry of same Method type.
-            
             const updatedList = currentDetails.filter(d => d.method !== expandedMethod);
             updatedList.push(newEntry);
 
             await onSave(updatedList);
             setSuccessMsg(`${expandedMethod} details saved!`);
             
-            // Optional: Close expansion after short delay
             setTimeout(() => {
                  setSuccessMsg('');
-                 // setExpandedMethod(null); // Keep open to show result? Or close. Let's keep open.
             }, 2000);
 
         } catch (err) {
@@ -190,7 +171,7 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
                              {typeof methodConfig.icon === 'string' ? <i className={`${methodConfig.icon} ${methodConfig.colors.icon} text-xl`}></i> : methodConfig.icon}
                         </div>
                         <div className="text-left">
-                            <p className="font-bold text-[var(--dark)]">{methodConfig.name}</p>
+                            <p className="font-bold text-gray-800">{methodConfig.name}</p>
                             {isSaved && !isExpanded && (
                                 <p className="text-xs text-green-600 font-medium flex items-center mt-0.5">
                                     <i className="fa-solid fa-check-circle mr-1"></i> Configured
@@ -257,7 +238,7 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
                                 }}
                                 placeholder={methodConfig.name === 'Crypto' ? (selectedCrypto?.placeholder || 'Select coin first') : methodConfig.placeholder}
                                 disabled={methodConfig.name === 'Crypto' && !selectedCrypto}
-                                className="w-full px-3 py-3 bg-gray-50 border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-[var(--primary)] focus:outline-none disabled:bg-gray-100 disabled:text-gray-400 transition-all font-medium"
+                                className="w-full px-3 py-3 bg-gray-50 border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-[var(--primary)] focus:outline-none disabled:bg-gray-100 disabled:text-gray-400 transition-all font-medium text-gray-900"
                             />
                         </div>
 
@@ -291,7 +272,7 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Manage Payment Methods">
             <div className="p-4 bg-gray-50 max-h-[70vh] overflow-y-auto">
-                <p className="text-sm text-[var(--gray)] mb-4">
+                <p className="text-sm text-gray-500 mb-4">
                     Configure your withdrawal methods below. You can save multiple methods and choose one when withdrawing.
                 </p>
 

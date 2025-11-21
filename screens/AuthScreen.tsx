@@ -1,10 +1,8 @@
 
 
-
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { signInUser, signUpUser, sendPasswordResetEmailHandler } from '../services/authService';
 import InfoModal from '../components/modals/InfoModal';
-import { TelegramUser } from '../types';
 
 type ModalType = 'success' | 'error' | 'info';
 type AuthView = 'login' | 'signup' | 'forgotPassword';
@@ -89,9 +87,8 @@ const PasswordInput: React.FC<{ id: string; value: string; onChange: (e: React.C
             <input
                 id={id}
                 className="w-full p-3 pr-10 bg-[var(--gray-light)] border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition"
-                type="text" // Use text when visible, but handle masking manually via CSS or just let browser handle it with type switch
+                type="text" 
                 style={{ WebkitTextSecurity: showPassword ? 'none' : 'disc' }}
-                // Actually, switching type is standard. Reverting to standard switch.
             />
             <input
                 id={id}
@@ -195,22 +192,6 @@ const SignUpForm: React.FC<{ onToggleView: (view: AuthView) => void; setModalSta
     const [acceptedTerms, setAcceptedTerms] = useState(false);
     const [loading, setLoading] = useState(false);
     
-    // Telegram User Data Ref
-    const telegramDataRef = useRef<TelegramUser | null>(null);
-
-    useEffect(() => {
-        // Auto-detect Telegram User
-        const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-        if (tgUser) {
-            telegramDataRef.current = tgUser;
-            // Pre-fill name if not manually changed yet (simple check: if empty)
-            if (!name) {
-                const fullName = `${tgUser.first_name} ${tgUser.last_name || ''}`.trim();
-                setName(fullName);
-            }
-        }
-    }, [name]); // Dependencies
-
     const closeModal = () => setModalState(prev => ({ ...prev, isOpen: false }));
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -249,15 +230,7 @@ const SignUpForm: React.FC<{ onToggleView: (view: AuthView) => void; setModalSta
         }
         setLoading(true);
         try {
-            // Extract optional telegram data
-            const tgData = telegramDataRef.current;
-            const options = tgData ? {
-                avatarUrl: tgData.photo_url,
-                telegramUsername: tgData.username,
-                telegramId: tgData.id
-            } : undefined;
-
-            await signUpUser(name, email, password, options);
+            await signUpUser(name, email, password);
             
             setModalState({
                 isOpen: true,
@@ -294,15 +267,6 @@ const SignUpForm: React.FC<{ onToggleView: (view: AuthView) => void; setModalSta
         <form onSubmit={handleSubmit} className="space-y-5">
             <h2 className="text-2xl font-bold text-center text-[var(--dark)]">Create Account</h2>
             
-            {telegramDataRef.current && (
-                <div className="bg-blue-50 p-3 rounded-lg flex items-center text-sm text-blue-700 mb-2">
-                    <i className="fa-brands fa-telegram mr-2 text-lg"></i>
-                    <span>
-                        Signing up with Telegram info: <strong>@{telegramDataRef.current.username || telegramDataRef.current.first_name}</strong>
-                    </span>
-                </div>
-            )}
-
             <div>
                  <label className="text-sm font-medium text-[var(--gray)]" htmlFor="name">Full Name</label>
                 <input
