@@ -41,7 +41,7 @@ const WithdrawalItem: React.FC<{ item: Withdrawal }> = ({ item }) => {
         }
 
         return dateObj.toLocaleString("en-US", {
-            timeZone: "Africa/Maputo",
+            timeZone: "America/New_York",
             year: 'numeric',
             month: 'short',
             day: 'numeric',

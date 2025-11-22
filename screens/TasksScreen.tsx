@@ -4,6 +4,7 @@ import { Screen, Task, UserProfile, TaskHistory } from '../types';
 import { getDailyTaskState, completeTask as completeTaskInService } from '../services/firestoreService';
 import { useTaskAd } from '../hooks/useTaskAd';
 import { playSound, vibrate, SOUNDS } from '../utils/sound';
+import InPageBanner from '../components/InPageBanner';
 
 interface TasksScreenProps {
   onNavigate: (screen: Screen) => void;
@@ -158,39 +159,50 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
     const handleTaskSuccess = useCallback(async ({ taskId, points }: { taskId: number; points: number }) => {
         if (!dailyState) return;
         
-        // --- CRITICAL UPDATE: Immediate Feedback ---
-        // Play sound and vibrate immediately when the task timer completes.
-        // This ensures feedback happens exactly when the task finishes, regardless of API latency.
+        // --- CRITICAL UPDATE: Immediate Feedback & Removal ---
+        // 1. Play sound/vibrate immediately
         playSound(SOUNDS.SUCCESS, 1.0);
         vibrate(500); // Single strong vibration for completion
 
+        // 2. Optimistic UI Update: Remove task INSTANTLY from the list
+        // Capture task details for history before removing
+        const completedTask = dailyState.tasks.find(t => t.id === taskId);
+        
+        setDailyState(prev => {
+             if (!prev) return null;
+             const updatedTasks = prev.tasks.filter(t => t.id !== taskId);
+             return {
+                 ...prev,
+                 tasks: updatedTasks,
+                 completedToday: prev.completedToday + 1,
+             };
+        });
+
         setActiveTaskId(null);
 
-        const completedTask = dailyState.tasks.find(t => t.id === taskId);
         if (!completedTask) return;
 
         try {
-            // 1. Perform Atomic Transaction on Firestore
+            // 3. Async Database Operations
             // Create history item object to pass to service
             const historyItem: Omit<TaskHistory, 'id' | 'timestamp'> = {
                 reward: points,
                 title: completedTask.title,
                 icon: completedTask.categoryIcon,
                 iconColor: completedTask.categoryIconColor,
-                date: new Date().toLocaleDateString("en-US", { timeZone: "Africa/Maputo" }),
+                date: new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" }),
             };
 
             await completeTaskInService(userProfile.uid, taskId, points, historyItem);
             
-            // 2. Only after success, update UI Local State
-            // Skip DB save in onEarnPoints because completeTaskInService already handled it
+            // 4. Update User Points Locally (skip DB save in onEarnPoints since we did it above)
             onEarnPoints(points, completedTask.title, completedTask.categoryIcon, completedTask.categoryIconColor, true);
             
-            // 3. Show Reward Modal after the sound and processing
+            // 5. Show Reward Modal
             setSuccessInfo({ points });
             setTimeout(() => setSuccessInfo(null), 3000);
             
-            // 4. Fetch latest state to ensure sync
+            // 6. Fetch latest state to ensure sync (silently update state to catch any server-side changes like breaks)
             const latestState = await getDailyTaskState(userProfile.uid);
             setDailyState(latestState);
 
@@ -204,12 +216,11 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
     const { showTaskAd, cancelAd, isAdActive, timeLeft, isLoading: isAdLoading } = useTaskAd({
         onReward: handleTaskSuccess,
         onError: (err) => {
-            console.error("Ad failed:", err);
+            console.error("Ad failed:", err instanceof Error ? err.message : String(err));
             setErrorMessage(err.message || "Task failed. Please try again.");
             setTimeout(() => setErrorMessage(null), 3000);
             setActiveTaskId(null);
         }
-        // onTick removed to prevent inaccurate timing feedback. Feedback is now in handleTaskSuccess.
     });
 
     const handleStartTask = async (task: ShuffledTask) => {
@@ -342,6 +353,9 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
                     <div className="bg-[var(--primary)] h-2.5 rounded-full transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div>
                 </div>
             </div>
+
+            {/* IN-PAGE BANNER AD */}
+            <InPageBanner />
 
             {renderContent()}
         </div>

@@ -1,19 +1,8 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import InfoModal from '../modals/InfoModal';
+import React, { useState, useEffect, useRef } from 'react';
 import { playSound, vibrate, SOUNDS } from '../../utils/sound';
 import { UserProfile } from '../../types';
 import { claimDailyCheckIn } from '../../services/firestoreService';
-
-// Define the structure for a single day in the check-in calendar
-type DayStatus = 'claimed' | 'claimable' | 'future';
-
-interface Day {
-    day: number;
-    status: DayStatus;
-    icon: string;
-    reward: number;
-}
 
 interface DailyCheckinModalProps {
     onClose: () => void;
@@ -21,305 +10,241 @@ interface DailyCheckinModalProps {
     userProfile?: UserProfile;
 }
 
-// Updated reward values and icons
-const initialDaysData: Day[] = [
-    { day: 1, status: 'future', icon: 'fa-solid fa-coins', reward: 20 },
-    { day: 2, status: 'future', icon: 'fa-solid fa-coins', reward: 35 },
-    { day: 3, status: 'future', icon: 'fa-solid fa-coins', reward: 55 },
-    { day: 4, status: 'future', icon: 'fa-solid fa-coins', reward: 100 },
-    { day: 5, status: 'future', icon: 'fa-solid fa-coins', reward: 120 },
-    { day: 6, status: 'future', icon: 'fa-solid fa-coins', reward: 135 },
-    { day: 7, status: 'future', icon: 'fa-solid fa-gift', reward: 0 }, // Placeholder, value generated on claim
+const DAYS_CONFIG = [
+    { day: 1, reward: 20, icon: 'fa-coins' },
+    { day: 2, reward: 35, icon: 'fa-coins' },
+    { day: 3, reward: 55, icon: 'fa-coins' },
+    { day: 4, reward: 100, icon: 'fa-coins' },
+    { day: 5, reward: 120, icon: 'fa-coins' },
+    { day: 6, reward: 135, icon: 'fa-coins' },
+    { day: 7, reward: 0, icon: 'fa-gift', isSurprise: true },
 ];
 
-
-const DayCard: React.FC<{ day: Day; onClaim: (day: number) => void; isLoading: boolean }> = ({ day, onClaim, isLoading }) => {
-    let cardClasses = 'relative flex flex-col items-center justify-center p-1 rounded-lg aspect-square transition-all duration-300 overflow-hidden';
-    let textClasses = '';
-    let iconClasses = 'text-2xl mb-1';
-    let dayLabelClasses = 'text-xs font-semibold';
-    let overlay = null;
-
-    const isClaimable = day.status === 'claimable';
-    const isClaimed = day.status === 'claimed';
-    const isSurpriseDay = day.day === 7;
-    
-    const displayIcon = (isSurpriseDay && day.status === 'claimed') ? 'fa-solid fa-box-open' : day.icon;
-
-    switch (day.status) {
-        case 'claimable':
-            cardClasses += ' bg-white border-2 border-[var(--primary)] cursor-pointer hover:shadow-lg hover:-translate-y-1';
-            textClasses = 'text-[var(--primary)]';
-            iconClasses += isSurpriseDay ? ' text-pink-400' : ' text-yellow-400';
-            break;
-        case 'claimed':
-            cardClasses += ' bg-green-100 border-2 border-green-300';
-            textClasses = 'text-green-700';
-            iconClasses += ' text-green-500';
-            overlay = (
-                <div className="absolute inset-0 bg-green-500 flex items-center justify-center z-10">
-                    <i className="fa-solid fa-check text-white text-4xl"></i>
-                </div>
-            );
-            break;
-        case 'future':
-        default:
-            cardClasses += ' bg-gray-100 hover:bg-gray-200 cursor-pointer';
-            textClasses = 'text-gray-400';
-            iconClasses += ' text-gray-400';
-            break;
-    }
-
-    return (
-        <button 
-            className={cardClasses} 
-            onClick={() => isClaimable && !isLoading && onClaim(day.day)}
-            disabled={isClaimed}
-        >
-            {overlay}
-            {isLoading && isClaimable && (
-                 <div className="absolute inset-0 bg-white/80 rounded-lg flex items-center justify-center z-20">
-                    <i className="fa-solid fa-spinner fa-spin text-[var(--primary)] text-2xl"></i>
-                </div>
-            )}
-            <p className={`${dayLabelClasses} ${textClasses}`}>Day {day.day}</p>
-            <i className={`${displayIcon} ${iconClasses}`}></i>
-            {isSurpriseDay && day.status !== 'claimed' ? (
-                <p className={`font-bold text-xs ${textClasses}`}>Surprise!</p>
-            ) : (
-                <p className={`font-bold text-xs ${textClasses}`}>+{day.reward}</p>
-            )}
-        </button>
-    );
-}
-
 const DailyCheckinModal: React.FC<DailyCheckinModalProps> = ({ onClose, onEarnPoints, userProfile }) => {
-    const [days, setDays] = useState<Day[]>(initialDaysData);
-    const [claimedToday, setClaimedToday] = useState(false);
+    // --- State ---
+    const [days, setDays] = useState(DAYS_CONFIG.map(d => ({ ...d, status: 'future' })));
+    const [isClaiming, setIsClaiming] = useState(false);
+    const [countdown, setCountdown] = useState(0);
     const [showSuccess, setShowSuccess] = useState(false);
-    const [claimedReward, setClaimedReward] = useState(0);
-    
-    // State to track which day is currently being processed
-    const [processingDay, setProcessingDay] = useState<number | null>(null);
-    const [timeLeft, setTimeLeft] = useState(15);
-    const [isTimerRunning, setIsTimerRunning] = useState(false);
-    
-    // Info Modal State
-    const [infoModal, setInfoModal] = useState<{ isOpen: boolean; title: string; message: string; type: 'error' | 'info' | 'success' }>({
-        isOpen: false,
-        title: '',
-        message: '',
-        type: 'info'
-    });
+    const [wonAmount, setWonAmount] = useState(0);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+    // Strict Lock Ref (Updates synchronously)
+    const isClaimingRef = useRef(false);
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // --- Date & Status Logic ---
+    const getTodayStr = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
     useEffect(() => {
         if (!userProfile) return;
 
-        // Use server date formatted "YYYY-MM-DD" for consistency, strictly Africa/Maputo
-        const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Maputo" }); 
-        const lastClaimDateStr = userProfile.dailyCheckIn?.lastDate || "";
-        const currentStreak = userProfile.dailyCheckIn?.streak || 0;
+        const todayStr = getTodayStr();
+        const lastDate = userProfile.dailyCheckIn?.lastDate || "";
+        const rawStreak = userProfile.dailyCheckIn?.streak || 0;
+        const isAlreadyClaimed = lastDate === todayStr;
 
-        let effectiveStreak = currentStreak;
-        let hasClaimedToday = lastClaimDateStr === todayStr;
+        // Calculate the start of the current 7-day cycle.
+        // If we claimed today (isAlreadyClaimed), we act as if we are still in the cycle of the claim we just made (streak - 1).
+        // If we haven't claimed, we use the current streak to see where we are.
+        const cycleBase = Math.floor((rawStreak - (isAlreadyClaimed ? 1 : 0)) / 7) * 7;
 
-        // Naive check if streak is broken
-        // Calculate "Yesterday" in Maputo Time
-        const nowInMaputo = new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Maputo" }));
-        const yesterdayInMaputo = new Date(nowInMaputo);
-        yesterdayInMaputo.setDate(yesterdayInMaputo.getDate() - 1);
-        const yesterdayStr = yesterdayInMaputo.toLocaleDateString("en-CA");
+        setDays(DAYS_CONFIG.map((d, index) => {
+            // The absolute day number for this specific card in the sequence (e.g., Day 8, Day 9...)
+            const dayAbsoluteNumber = cycleBase + index + 1;
 
-        if (!hasClaimedToday && lastClaimDateStr !== yesterdayStr && lastClaimDateStr !== "") {
-            effectiveStreak = 0;
-        }
-        
-        // Reset streak if it's over 7 days
-        if (effectiveStreak >= 7) {
-            effectiveStreak = 0;
-        }
-
-        setClaimedToday(hasClaimedToday);
-        
-        const nextClaimableDay = hasClaimedToday ? effectiveStreak : effectiveStreak + 1;
-
-        const updatedDays = initialDaysData.map(day => {
-            if (day.day < nextClaimableDay) {
-                return { ...day, status: 'claimed' as DayStatus };
+            // LOGIC:
+            // 1. If the absolute day number is <= the user's total streak, it is CLAIMED.
+            if (dayAbsoluteNumber <= rawStreak) {
+                return { ...d, status: 'claimed' };
             }
-            if (day.day === nextClaimableDay && !hasClaimedToday) {
-                return { ...day, status: 'claimable' as DayStatus };
+            
+            // 2. If the absolute day number is exactly (streak + 1), AND we haven't claimed today, it is CURRENT.
+            if (dayAbsoluteNumber === rawStreak + 1 && !isAlreadyClaimed) {
+                return { ...d, status: 'current' };
             }
-            return { ...day, status: 'future' as DayStatus };
-        });
 
-        setDays(updatedDays);
+            // 3. Otherwise, it is in the FUTURE.
+            return { ...d, status: 'future' };
+        }));
+
+        // If claimed today, lock ref immediately just in case
+        if (isAlreadyClaimed) {
+            isClaimingRef.current = true;
+        } else {
+            isClaimingRef.current = false;
+        }
+
     }, [userProfile]);
 
-    // Timer Logic for 15s flow
+    // --- Cleanup ---
     useEffect(() => {
-        let interval: ReturnType<typeof setInterval>;
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+        };
+    }, []);
+
+    // --- Handlers ---
+    const handleStartClaim = (dayIndex: number) => {
+        // 1. Strict Checks
+        if (isClaimingRef.current || isClaiming) return;
+        const targetDay = days[dayIndex];
         
-        if (isTimerRunning && timeLeft > 0) {
-            interval = setInterval(() => {
-                setTimeLeft(prev => {
-                    const newVal = prev - 1;
-                    // Sound at 14s (when 1s is left)
-                    if (newVal === 1) {
-                         playSound(SOUNDS.SUCCESS);
-                    }
-                    // Vibrate at 15s end (when 0s left)
-                    if (newVal === 0) {
-                        vibrate(200);
-                        handleRewardGrant(); // Grant reward when time is up
-                    }
-                    return newVal;
-                });
-            }, 1000);
+        // Only allow clicking if status is strictly 'current'
+        if (targetDay.status !== 'current') return;
+
+        // 2. Lock & Update UI
+        isClaimingRef.current = true;
+        setIsClaiming(true);
+        setCountdown(15);
+        setErrorMsg(null);
+
+        // 3. Load Ad (Fire & Forget)
+        try {
+             if ((window as any).show_10206331) (window as any).show_10206331();
+        } catch (e) {}
+
+        // 4. Start Timer
+        timerRef.current = setInterval(() => {
+            setCountdown(prev => {
+                if (prev <= 1) {
+                    if (timerRef.current) clearInterval(timerRef.current);
+                    executeClaim(dayIndex);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+    };
+
+    const executeClaim = async (dayIndex: number) => {
+        if (!userProfile) return;
+
+        const dayConfig = days[dayIndex];
+        let reward = dayConfig.reward;
+        if (dayConfig.isSurprise) {
+            reward = Math.floor(Math.random() * (500 - 100 + 1)) + 100;
         }
-        
-        return () => clearInterval(interval);
-    }, [isTimerRunning, timeLeft]);
 
-    const handleRewardGrant = async () => {
-        if (processingDay === null || !userProfile) return;
-        setIsTimerRunning(false);
-
-        const dayToClaim = days.find(d => d.day === processingDay);
-        if (!dayToClaim) return;
-
-        let finalReward = dayToClaim.reward;
-        const isSurpriseDay = dayToClaim.day === 7;
-
-        if (isSurpriseDay) {
-            const min = 155;
-            const max = 465;
-            const randomNumber = Math.floor(Math.random() * (max - min + 1)) + min;
-            finalReward = Math.round(randomNumber / 5) * 5;
-        }
+        const todayStr = getTodayStr();
+        const newStreak = (userProfile.dailyCheckIn?.streak || 0) + 1;
 
         try {
-            const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Maputo" });
-            // Calculate new streak
-            const currentStreak = userProfile.dailyCheckIn?.streak || 0;
-            const newStreak = (currentStreak >= 7) ? 1 : currentStreak + 1;
-
-            // Server sync
-            await claimDailyCheckIn(userProfile.uid, finalReward, todayStr, newStreak);
-
-            setClaimedReward(finalReward);
-            onEarnPoints(finalReward, `Daily Check-in: Day ${dayToClaim.day}`, dayToClaim.icon, isSurpriseDay ? 'text-pink-400' : 'text-yellow-400');
-
-            setDays(prevDays => prevDays.map(d => 
-                d.day === processingDay 
-                ? { ...d, status: 'claimed', reward: finalReward } 
-                : d
-            ));
-            setClaimedToday(true);
-            setShowSuccess(true);
+            await claimDailyCheckIn(userProfile.uid, reward, todayStr, newStreak);
             
-            setTimeout(() => {
-                onClose();
-            }, 3000);
-            
-        } catch (e: any) {
-            setInfoModal({ isOpen: true, title: "Error", message: e.message || "Failed to claim reward.", type: 'error' });
-            setIsTimerRunning(false);
-            setProcessingDay(null);
+            // Success!
+            handleSuccess(reward);
+
+        } catch (err: any) {
+            console.error(err);
+            // Handle Race Condition: If backend says "Already checked in", treat as visual success
+            if (err.message && err.message.includes("Already checked in")) {
+                // Maybe they double clicked too fast or refreshed. Show success anyway to avoid confusion.
+                handleSuccess(reward); 
+            } else {
+                // Genuine Error
+                setIsClaiming(false);
+                isClaimingRef.current = false;
+                setErrorMsg("Connection error. Please try again.");
+            }
         }
     };
 
-    const handleDayClick = async (dayNumber: number) => {
-        if (claimedToday || processingDay !== null) return;
+    const handleSuccess = (reward: number) => {
+        playSound(SOUNDS.SUCCESS);
+        vibrate(200);
+        setWonAmount(reward);
+        setShowSuccess(true);
+        setIsClaiming(false); // Visual loading stop, but ref stays true via "Already Claimed" logic in effect next render
         
-        // Check for user profile first to avoid issues
-        if (!userProfile) {
-             setInfoModal({ isOpen: true, title: "Error", message: "User profile not loaded. Please try again.", type: 'error' });
-             return;
-        }
+        // Notify Parent (Points are already in DB, just visual update)
+        onEarnPoints(reward, 'Daily Check-in', 'fa-solid fa-calendar-check', 'text-green-500');
 
-        setProcessingDay(dayNumber);
-        setTimeLeft(15);
-        setIsTimerRunning(true);
-
-        // Trigger Ad (Interstitial) - Fire and forget, or await if we wanted to pause timer?
-        // Request says "time based on 15s". We start timer AND show ad.
-        if (window.show_10206331) {
-            window.show_10206331().then(() => {
-                console.log("Ad closed by user.");
-                // We don't grant reward here, we wait for timer (15s) to finish.
-            }).catch(e => {
-                console.warn("Ad failed to load/show", e);
-                // We allow the timer to continue even if ad fails? 
-                // Usually yes to not block user, or we could show error.
-            });
-        } else {
-            console.warn("Ad SDK not ready");
-        }
+        setTimeout(() => {
+            onClose();
+        }, 2500);
     };
-
-    const infoText = claimedToday
-        ? 'You have already claimed today. Come back tomorrow!'
-        : "";
 
     return (
-        <div className="p-4 md:p-6 relative">
-            {/* Success Overlay - Semi-transparent as requested previously for result */}
-            {showSuccess && (
-                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-xl animate-fadeIn">
-                    <div className="bg-white/90 p-8 rounded-2xl shadow-2xl text-center max-w-sm w-full relative overflow-hidden transform transition-all scale-100 border border-white/50">
-                        <div className="absolute inset-0 bg-gradient-to-br from-green-400/10 to-blue-400/10 pointer-events-none"></div>
-                        <div className="w-24 h-24 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-6 border-4 border-green-200 animate-bounce relative z-10">
-                            <i className="fa-solid fa-gift text-green-500 text-5xl"></i>
-                        </div>
-                        <h3 className="text-3xl font-extrabold text-gray-800 mb-2 relative z-10">Checked In!</h3>
-                        <p className="text-gray-600 relative z-10 text-lg">
-                            You earned <span className="font-bold text-green-600 text-xl">+{claimedReward}</span> points!
-                        </p>
-                    </div>
-                </div>
-            )}
-
-            {/* Processing Overlay */}
-            {processingDay !== null && !showSuccess && (
-                <div className="absolute inset-0 z-20 bg-white/90 flex flex-col items-center justify-center rounded-xl">
-                     <div className="w-20 h-20 mb-6 relative flex items-center justify-center">
-                        <svg className="animate-spin h-full w-full text-[var(--primary)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <div className="p-3 relative select-none">
+             {/* BLOCKING OVERLAY for Timer */}
+             {isClaiming && !showSuccess && (
+                <div className="absolute inset-0 z-[60] bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center rounded-xl cursor-wait">
+                     <div className="relative w-16 h-16 flex items-center justify-center">
+                        <svg className="animate-spin w-full h-full text-[var(--primary)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <span className="absolute font-bold text-2xl text-[var(--dark)]">{timeLeft}</span>
+                        <span className="absolute text-sm font-bold text-[var(--dark)]">{countdown}s</span>
                     </div>
-                    <p className="font-bold text-lg text-gray-700 animate-pulse">Checking In...</p>
-                    <p className="text-sm text-gray-500 mt-2">Please wait for verification.</p>
+                    <p className="text-xs font-semibold text-[var(--primary)] mt-3 animate-pulse">Claiming Reward...</p>
+                    <p className="text-[10px] text-gray-400 mt-1">Please do not close</p>
+                </div>
+             )}
+
+             {/* SUCCESS OVERLAY */}
+             {showSuccess && (
+                <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-white/95 backdrop-blur-sm rounded-xl animate-fadeIn">
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-2 animate-bounce">
+                        <i className="fa-solid fa-check text-2xl text-green-600"></i>
+                    </div>
+                    <h2 className="text-xl font-bold text-green-600">+{wonAmount} Points</h2>
+                    <p className="text-xs text-gray-500 mt-1">See you tomorrow!</p>
                 </div>
             )}
 
-            <div className="grid grid-cols-4 gap-3 mb-4">
-                {days.map(day => (
-                    <DayCard 
-                        key={day.day} 
-                        day={day} 
-                        onClaim={handleDayClick} 
-                        isLoading={processingDay !== null}
-                    />
-                ))}
+             {errorMsg && (
+                <div className="bg-red-100 text-red-600 text-xs p-2 rounded mb-2 text-center border border-red-200">
+                    {errorMsg}
+                </div>
+            )}
+
+            {/* Grid */}
+            <div className="grid grid-cols-4 gap-2">
+                {days.map((day, index) => {
+                    const isClaimed = day.status === 'claimed';
+                    const isCurrent = day.status === 'current';
+                    const isSurprise = day.isSurprise;
+
+                    return (
+                        <button
+                            key={index}
+                            disabled={!isCurrent || isClaiming}
+                            onClick={() => handleStartClaim(index)}
+                            className={`
+                                relative aspect-square rounded-xl border-2 flex flex-col items-center justify-center p-1 transition-all duration-200
+                                ${isClaimed 
+                                    ? 'bg-green-50 border-green-200 opacity-80' 
+                                    : isCurrent 
+                                        ? 'bg-white border-[var(--primary)] shadow-md transform hover:scale-105 cursor-pointer' 
+                                        : 'bg-gray-50 border-gray-100 opacity-60 cursor-not-allowed'
+                                }
+                            `}
+                        >
+                            <span className={`text-[9px] font-bold uppercase mb-1 ${isCurrent ? 'text-[var(--primary)]' : 'text-gray-400'}`}>
+                                Day {day.day}
+                            </span>
+
+                            <div className={`text-lg mb-1 ${isClaimed ? 'text-green-500' : isCurrent ? (isSurprise ? 'text-pink-500' : 'text-yellow-500') : 'text-gray-300'}`}>
+                                <i className={`fa-solid ${isSurprise && !isClaimed ? 'fa-gift' : 'fa-coins'}`}></i>
+                            </div>
+
+                             {isClaimed ? (
+                                <div className="absolute inset-0 flex items-center justify-center bg-green-100/80 rounded-lg z-10">
+                                    <i className="fa-solid fa-check text-green-600 text-lg"></i>
+                                </div>
+                            ) : (
+                                <span className={`text-[10px] font-bold ${isCurrent ? 'text-[var(--dark)]' : 'text-gray-400'}`}>
+                                    {isSurprise ? '???' : `+${day.reward}`}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
             </div>
-            <p className="text-center text-sm text-[var(--gray)] h-5">
-                {infoText}
-            </p>
-            
-            <InfoModal
-                isOpen={infoModal.isOpen}
-                onClose={() => setInfoModal(prev => ({ ...prev, isOpen: false }))}
-                title={infoModal.title}
-                message={infoModal.message}
-                type={infoModal.type}
-                actions={[{ text: 'OK', onClick: () => setInfoModal(prev => ({ ...prev, isOpen: false })), primary: true }]}
-            />
-            <style>{`
-                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-                .animate-fadeIn { animation: fadeIn 0.3s ease forwards; }
+             <style>{`
+                @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+                .animate-fadeIn { animation: fadeIn 0.2s ease-out forwards; }
             `}</style>
         </div>
     );

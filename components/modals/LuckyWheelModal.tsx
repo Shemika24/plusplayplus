@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SpinWheelState } from '../../types';
 import Modal from '../Modal';
 import { useRewardedAd } from '../../hooks/useRewardedAd';
@@ -10,10 +10,10 @@ const playSound = (src: string, volume: number = 1.0) => {
         const audio = new Audio(src);
         audio.volume = volume;
         audio.play().catch(() => {
-            // Silently ignore playback errors as requested.
+            // Silently ignore playback errors
         });
     } catch (e) {
-        // Silently ignore audio initialization errors.
+        // Silently ignore audio initialization errors
     }
 };
 
@@ -45,7 +45,7 @@ interface LuckyWheelModalProps {
 
 interface Segment {
     value: number | string;
-    colorClass: string;
+    hexColor: string;
     icon: React.ReactNode;
     name: string;
 }
@@ -63,7 +63,7 @@ const CongratsModal: React.FC<{ isOpen: boolean; prize: number; onClaim: () => v
 
     return (
         <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-[110] animate-fadeIn">
-            <div className="bg-white p-6 rounded-2xl shadow-lg max-w-xs w-11/12 relative animate-slideInUp text-center">
+            <div className="bg-[var(--bg-card)] p-6 rounded-2xl shadow-lg max-w-xs w-11/12 relative animate-slideInUp text-center border border-[var(--border-color)]">
                 <i className="fa-solid fa-wand-magic-sparkles text-5xl mx-auto text-[var(--success)] mb-4"></i>
                 <h3 className="text-xl font-bold text-[var(--dark)] mb-2">You Won!</h3>
                 <p className="text-[var(--gray)]">
@@ -86,7 +86,7 @@ const LossModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = ({ isOpen
 
     return (
         <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-[110] animate-fadeIn">
-            <div className="bg-white p-6 rounded-2xl shadow-lg max-w-xs w-11/12 relative animate-slideInUp text-center">
+            <div className="bg-[var(--bg-card)] p-6 rounded-2xl shadow-lg max-w-xs w-11/12 relative animate-slideInUp text-center border border-[var(--border-color)]">
                 <i className="fa-solid fa-face-frown-open text-5xl mx-auto text-[var(--error)] mb-4"></i>
                 <h3 className="text-xl font-bold text-[var(--dark)] mb-2">Oops! Try Again!</h3>
                 <p className="text-[var(--gray)]">
@@ -97,51 +97,31 @@ const LossModal: React.FC<{ isOpen: boolean; onClose: () => void; }> = ({ isOpen
     );
 };
 
-
 const SpinWheelInfoModal: React.FC<{ isOpen: boolean; onClose: () => void; segments: Segment[]; }> = ({ isOpen, onClose, segments }) => {
     if (!isOpen) return null;
 
+    // Filter unique segments for the legend
     const uniqueSegments = useMemo(() => {
         const seen = new Set<string>();
         return segments.filter(segment => {
-            if (seen.has(segment.name)) {
-                return false;
-            }
+            if (seen.has(segment.name)) return false;
             seen.add(segment.name);
             return true;
         });
     }, [segments]);
 
-    const sortedSegments = useMemo(() => {
-        return [...uniqueSegments].sort((a, b) => {
-            if (typeof a.value === 'string') return 1; // 'no_prize' goes to the end
-            if (typeof b.value === 'string') return -1;
-            return a.value - b.value;
-        });
-    }, [uniqueSegments]);
-
-    const colorMap: { [key: string]: string } = { sky: 'bg-sky-500', slate: 'bg-slate-500', violet: 'bg-violet-500', rose: 'bg-rose-500', amber: 'bg-amber-500', lime: 'bg-lime-500', fuchsia: 'bg-fuchsia-500', teal: 'bg-teal-500' };
-    const getColorClass = (classes: string) => {
-        for (const key in colorMap) {
-            if (classes.includes(key)) return colorMap[key];
-        }
-        return 'bg-gray-500';
-    };
-
     return (
         <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-[110] animate-fadeIn" onClick={onClose}>
-            <div className="bg-white p-6 rounded-2xl shadow-lg max-w-sm w-11/12 relative animate-slideInUp" onClick={e => e.stopPropagation()}>
-                <button className="absolute top-4 right-4 text-[var(--gray)] hover:text-[var(--dark)]" onClick={onClose} aria-label="Close"><i className="fa-solid fa-xmark text-2xl"></i></button>
+            <div className="bg-[var(--bg-card)] p-6 rounded-2xl shadow-lg max-w-sm w-11/12 relative animate-slideInUp border border-[var(--border-color)]" onClick={e => e.stopPropagation()}>
+                <button className="absolute top-4 right-4 text-[var(--gray)] hover:text-[var(--dark)]" onClick={onClose}><i className="fa-solid fa-xmark text-2xl"></i></button>
                 <h2 className="text-2xl font-bold text-center text-[var(--dark)] mb-2">Wheel Prizes</h2>
-                <p className="text-center text-[var(--gray)] text-sm mb-6">Here are the possible prizes you can win from the wheel.</p>
-                
-                <div className="grid grid-cols-4 gap-3">
-                     {sortedSegments.map((segment, index) => (
-                        <div key={index} className="flex flex-col items-center justify-center text-center gap-1 bg-gray-50 p-2 rounded-xl border border-gray-200">
-                            <div className={`w-12 h-12 rounded-full ${getColorClass(segment.colorClass)} flex-shrink-0 flex items-center justify-center`}>
+                <div className="grid grid-cols-4 gap-3 mt-4">
+                     {uniqueSegments.map((segment, index) => (
+                        <div key={index} className="flex flex-col items-center justify-center text-center gap-1 bg-[var(--bg-input)] p-2 rounded-xl border border-[var(--border-color)]">
+                            <div className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: segment.hexColor }}>
                                 {segment.icon}
                             </div>
-                            <p className="font-semibold text-xs text-center text-[var(--dark)] mt-1 h-8 flex items-center justify-center">{segment.name}</p>
+                            <p className="font-semibold text-xs text-center text-[var(--dark)] mt-1 leading-tight">{segment.name}</p>
                         </div>
                     ))}
                 </div>
@@ -150,17 +130,17 @@ const SpinWheelInfoModal: React.FC<{ isOpen: boolean; onClose: () => void; segme
     );
 };
 
-
 const LuckyWheelModal: React.FC<LuckyWheelModalProps> = ({ isOpen, onClose, spinWheelState, onSpinComplete, isOnline }) => {
+    // 8 Segments configuration matching the "Wheel Prizes" concept
     const segments: Segment[] = useMemo(() => [
-        { value: 100, colorClass: 'bg-gradient-to-br from-sky-400 to-blue-600', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '100 Points' },
-        { value: 300, colorClass: 'bg-gradient-to-br from-teal-400 to-emerald-600', icon: <i className="fa-solid fa-gem text-white text-xl"></i>, name: '300 Points' },
-        { value: 145, colorClass: 'bg-gradient-to-br from-violet-400 to-purple-600', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '145 Points' },
-        { value: 155, colorClass: 'bg-gradient-to-br from-rose-400 to-red-600', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '155 Points' },
-        { value: 200, colorClass: 'bg-gradient-to-br from-amber-400 to-orange-600', icon: <i className="fa-solid fa-star text-white text-xl"></i>, name: '200 Points' },
-        { value: 'no_prize', colorClass: 'bg-gradient-to-br from-slate-400 to-gray-600', icon: <i className="fa-solid fa-face-meh text-white text-xl"></i>, name: 'No Prize' },
-        { value: 45, colorClass: 'bg-gradient-to-br from-lime-400 to-green-600', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '45 Points' },
-        { value: 55, colorClass: 'bg-gradient-to-br from-fuchsia-400 to-pink-600', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '55 Points' },
+        { value: 100, hexColor: '#0284c7', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '100 Pts' }, // Blue
+        { value: 300, hexColor: '#059669', icon: <i className="fa-solid fa-gem text-white text-xl"></i>, name: '300 Pts' },   // Teal
+        { value: 145, hexColor: '#7c3aed', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '145 Pts' }, // Violet
+        { value: 155, hexColor: '#e11d48', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '155 Pts' }, // Rose
+        { value: 200, hexColor: '#d97706', icon: <i className="fa-solid fa-star text-white text-xl"></i>, name: '200 Pts' }, // Amber
+        { value: 'no_prize', hexColor: '#475569', icon: <i className="fa-solid fa-face-meh text-white text-xl"></i>, name: 'No Prize' }, // Slate
+        { value: 45, hexColor: '#65a30d', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '45 Pts' },  // Lime
+        { value: 55, hexColor: '#c026d3', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '55 Pts' },  // Fuchsia
     ], []);
 
     const MAX_SPINS_PER_DAY = 10;
@@ -171,27 +151,99 @@ const LuckyWheelModal: React.FC<LuckyWheelModalProps> = ({ isOpen, onClose, spin
     const [result, setResult] = useState<number | string | null>(null);
     const [isInfoModalOpen, setInfoModalOpen] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    
+    // State for immediate freeze logic on error
+    const [transitionDuration, setTransitionDuration] = useState('20000ms');
+    const wheelRef = useRef<HTMLDivElement>(null);
+    
+    // Store the pending prize to be revealed after the 20s wait
+    const pendingResultRef = useRef<number | string | null>(null);
 
-    // --- Logic for the Actual Spin Mechanics ---
-    const executeSpinLogic = () => {
+    const handleSpinError = useCallback(() => {
+        if (wheelRef.current) {
+            // 1. Compute current visual rotation
+            const computedStyle = window.getComputedStyle(wheelRef.current);
+            const matrix = new WebKitCSSMatrix(computedStyle.transform);
+            
+            // Extract angle from matrix
+            const angle = Math.round(Math.atan2(matrix.m12, matrix.m11) * (180 / Math.PI));
+            const currentRotation = angle < 0 ? angle + 360 : angle;
+            
+            // 2. Kill transition immediately
+            setTransitionDuration('0ms');
+            
+            // 3. Force React state to current visual angle to "freeze" it
+            // We add the full rotations we've already done to keep it consistent
+            const totalRotations = Math.floor(rotation / 360);
+            const newFrozenRotation = (totalRotations * 360) + currentRotation;
+            
+            setRotation(newFrozenRotation);
+        }
+        
+        setIsSpinning(false);
+    }, [rotation]);
+
+    // Ad Hook
+    const { 
+        showRewardedAd, 
+        cancelAd, 
+        preloadAd, 
+        isLoading: isAdLoading, 
+        isAdActive 
+    } = useRewardedAd({
+        minViewTimeSeconds: 20, // EXACTLY 20 SECONDS
+        maxViewTimeSeconds: 20, // EXACTLY 20 SECONDS
+        onReward: (data) => {
+            // This callback fires when the 20s timer finishes
+            console.log(`Ad/Timer completed. Granting result.`);
+            finalizeSpin();
+        },
+        onError: (err: any) => {
+            const msg = err?.message || "Could not load ad. Please try again.";
+            setErrorMessage(msg);
+            setTimeout(() => setErrorMessage(null), 3000);
+            handleSpinError();
+        }
+    });
+
+    useEffect(() => {
+        if (isOpen) {
+            preloadAd();
+        }
+    }, [isOpen, preloadAd]);
+
+    // Triggered when the 20s timer (ad) finishes
+    const finalizeSpin = () => {
+        const prize = pendingResultRef.current;
+        if (prize === null) return;
+
+        setResult(prize);
+        onSpinComplete(prize);
+        
+        if (typeof prize === 'number') {
+            playSound(SOUNDS.WIN, 0.8);
+            vibrate([100, 50, 100, 50, 100]);
+        } else {
+            playSound(SOUNDS.LOSE, 0.6);
+            vibrate(300);
+        }
+    };
+
+    const handleSpinClick = () => {
         if (isSpinning || !isOnline || spinWheelState.spinsToday >= MAX_SPINS_PER_DAY) return;
+        setErrorMessage(null);
 
-        playSound(SOUNDS.SPIN_START, 0.5);
-        setIsSpinning(true);
-        setResult(null);
-
-        // --- Controlled Randomness Logic ---
+        // 1. Calculate Result Immediately
         const { winsToday, lossesToday } = spinWheelState;
         const targetLosses = MAX_SPINS_PER_DAY - targetWins;
-
         const winsRemaining = targetWins - winsToday;
         const lossesRemaining = targetLosses - lossesToday;
         
         let isWinResult: boolean;
         if (winsRemaining <= 0) {
-            isWinResult = false; // Must be a loss
+            isWinResult = false;
         } else if (lossesRemaining <= 0) {
-            isWinResult = true; // Must be a win
+            isWinResult = true;
         } else {
             isWinResult = Math.random() < winsRemaining / (winsRemaining + lossesRemaining);
         }
@@ -203,204 +255,135 @@ const LuckyWheelModal: React.FC<LuckyWheelModalProps> = ({ isOpen, onClose, spin
             ? prizeSegments[Math.floor(Math.random() * prizeSegments.length)]
             : lossSegments[Math.floor(Math.random() * lossSegments.length)];
         
-        const winningSegmentIndex = segments.findIndex(s => s === winningSegment);
-
-        const segmentAngle = 360 / segments.length;
-        const randomOffset = (segmentAngle / 2) - (Math.random() * segmentAngle * 0.8 + (segmentAngle * 0.1));
-        const finalAngle = 360 - ((winningSegmentIndex * segmentAngle) + randomOffset);
+        const winningIndex = segments.indexOf(winningSegment);
         
-        const totalRotation = 360 * 5 + finalAngle;
-        setRotation(prev => prev + totalRotation);
+        // Store logic result
+        pendingResultRef.current = winningSegment.value;
 
+        // 2. Calculate Rotation
+        // Segment angle math
+        const segmentAngle = 45;
+        const segmentCenter = (winningIndex * segmentAngle) + (segmentAngle / 2);
+        
+        // Add A LOT of rotations to cover the 20 seconds duration
+        // 20 seconds duration. Let's do roughly 80 full spins.
+        const baseRotation = 360 * 80; 
+        const adjustment = (360 - segmentCenter); 
+        
+        // Next rotation accumulation
+        const nextRotation = rotation + baseRotation + adjustment - (rotation % 360);
+        
+        // 3. Start Visuals IMMEDIATELY
+        playSound(SOUNDS.SPIN_START, 0.5);
+        setTransitionDuration('20000ms'); // Ensure duration is set correctly
+        setIsSpinning(true);
+        setResult(null);
+        setRotation(nextRotation);
+
+        // 4. Start Timer (via Ad Hook) - DELAYED BY 3 SECONDS
         setTimeout(() => {
-            const prize = segments[winningSegmentIndex].value;
-            setResult(prize);
-            onSpinComplete(prize);
-            if (typeof prize === 'number') {
-                playSound(SOUNDS.WIN, 0.8);
-                // Win Vibration: 3 short pulses
-                vibrate([100, 50, 100, 50, 100]);
-            } else {
-                playSound(SOUNDS.LOSE, 0.6);
-                // Lose Vibration: One longer heavy pulse
-                vibrate(300);
-            }
-        }, 4000);
+            showRewardedAd();
+        }, 3000);
     };
 
-    // --- Ad Integration ---
-    const { 
-        showRewardedAd, 
-        cancelAd, 
-        preloadAd, 
-        isLoading: isAdLoading, 
-        isAdActive, 
-        timeLeft: adTimeLeft 
-    } = useRewardedAd({
-        minViewTimeSeconds: 20,
-        maxViewTimeSeconds: 35,
-        onReward: (data) => {
-            console.log(`Reward granted for tracking ID: ${data.trackingId}`);
-            executeSpinLogic();
-        },
-        onError: (err: any) => {
-            // Show a visible error inside the modal or an alert
-            const msg = err?.message || "Could not load ad. Please try again.";
-            setErrorMessage(msg);
-            // Auto-clear error after 3 seconds
-            setTimeout(() => setErrorMessage(null), 3000);
-        }
-    });
-
-    useEffect(() => {
-        if (isOpen) {
-            preloadAd(); // Preload when modal opens
-        }
-    }, [isOpen, preloadAd]);
-
-
-    const handleSpinClick = () => {
-        if (isSpinning || !isOnline || spinWheelState.spinsToday >= MAX_SPINS_PER_DAY) return;
-        setErrorMessage(null);
-        showRewardedAd();
-    };
-
-    // Memoized to prevent reference change on re-renders, which resets the timer in sub-modals
     const handleCloseResultModal = useCallback(() => {
         setResult(null);
         setIsSpinning(false);
     }, []);
 
-    const handleOpenInfo = () => {
-        playSound(SOUNDS.CLICK, 0.7);
-        setInfoModalOpen(true);
-    }
-    
     if (!isOpen) return null;
 
     const spinsLeft = MAX_SPINS_PER_DAY - spinWheelState.spinsToday;
     const canSpin = !isSpinning && isOnline && spinsLeft > 0 && !isAdLoading && !isAdActive;
 
+    // Build gradient string dynamically
+    const gradientString = `conic-gradient(
+        ${segments.map((s, i) => `${s.hexColor} ${i * 45}deg ${(i + 1) * 45}deg`).join(', ')}
+    )`;
+
     return (
         <>
             <Modal isOpen={isOpen} onClose={isSpinning || isAdActive ? () => {} : onClose} title="Lucky Wheel">
-                <div className="p-4 md:p-6 relative overflow-hidden">
+                <div className="p-4 md:p-6 relative overflow-hidden flex flex-col items-center">
                     
-                    {/* Ad Viewing Overlay */}
-                    {isAdActive && (
-                        <div className="absolute inset-0 bg-white/95 z-50 flex flex-col items-center justify-center rounded-xl animate-fadeIn text-center p-6">
-                            <div className="w-16 h-16 mb-4 relative flex items-center justify-center">
-                                <svg className="animate-spin h-full w-full text-[var(--primary)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                <span className="absolute font-bold text-[var(--dark)] text-lg">{adTimeLeft}s</span>
-                            </div>
-                            <h3 className="text-xl font-bold text-[var(--dark)] mb-2">Ad in Progress</h3>
-                            <p className="text-sm text-[var(--gray)] mb-4">
-                                Please keep the ad window open for <span className="font-bold text-[var(--primary)]">{adTimeLeft}s</span>.
-                            </p>
-                            <div className="w-full bg-gray-200 rounded-full h-2.5 mb-6 max-w-xs">
-                                <div className="bg-[var(--primary)] h-2.5 rounded-full transition-all duration-1000 ease-linear" style={{ width: `${((35 - adTimeLeft) / 35) * 100}%` }}></div>
-                            </div>
-                            <button 
-                                onClick={() => cancelAd(false)}
-                                className="px-6 py-2 bg-red-100 text-red-600 rounded-lg font-semibold text-sm hover:bg-red-200 transition-colors"
-                            >
-                                <i className="fa-solid fa-xmark mr-2"></i>
-                                Cancel & Close
-                            </button>
-                        </div>
-                    )}
-
-                    {/* Error Toast */}
+                    {/* Error Overlay */}
                     {errorMessage && (
-                        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 w-11/12 bg-red-500 text-white text-sm py-2 px-4 rounded-lg shadow-lg z-40 animate-fadeIn text-center">
-                            <i className="fa-solid fa-circle-exclamation mr-2"></i>
+                        <div className="absolute top-4 w-11/12 bg-red-500 text-white text-sm py-2 px-4 rounded-lg shadow-lg z-40 animate-fadeIn text-center">
                             {errorMessage}
                         </div>
                     )}
 
-                    <div className="relative w-64 h-64 mx-auto mb-6">
-                        {/* Wheel Pointer */}
-                        <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-20" style={{ filter: 'drop-shadow(0 4px 3px rgba(0,0,0,0.3))' }}>
-                            <div className="w-0 h-0 border-l-[15px] border-l-transparent border-r-[15px] border-r-transparent border-t-[25px] border-t-yellow-400"></div>
+                    {/* WHEEL CONTAINER */}
+                    <div className="relative w-72 h-72 mb-6">
+                        
+                        {/* POINTER (Fixed at Top Center) */}
+                        <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none drop-shadow-md">
+                             <i className="fa-solid fa-location-dot text-red-600 text-5xl fa-rotate-180"></i>
                         </div>
 
-                        {/* The Wheel */}
-                        <div
-                            className="w-full h-full rounded-full border-8 border-[#4a6bff] shadow-2xl ring-4 ring-blue-100 transition-transform duration-[4000ms] ease-out"
+                        {/* THE ROTATING WHEEL */}
+                        <div 
+                            ref={wheelRef}
+                            className="w-full h-full rounded-full border-[8px] border-white shadow-2xl relative transition-transform cubic-bezier(0.25, 0.1, 0.25, 1)"
                             style={{
                                 transform: `rotate(${rotation}deg)`,
-                                background: `conic-gradient(
-                                    from 0deg,
-                                    ${segments.map((s, i) => `${s.colorClass.replace('bg-gradient-to-br from-', '').split(' to-')[0]} ${i * 45}deg ${(i + 1) * 45}deg`).join(', ')}
-                                )`
+                                background: gradientString,
+                                transitionDuration: transitionDuration
                             }}
                         >
-                            {segments.map((segment, index) => (
-                                <div
-                                    key={index}
-                                    className="absolute w-1/2 h-1/2 top-0 left-0 origin-bottom-right flex justify-center items-start pt-4"
-                                    style={{ transform: `rotate(${index * 45 + 22.5}deg)` }}
+                            {/* Render Segments Icons (No Numbers) */}
+                            {segments.map((segment, i) => (
+                                <div 
+                                    key={i}
+                                    className="absolute w-full h-full top-0 left-0"
+                                    style={{
+                                        // Rotate container to point to the slice center
+                                        transform: `rotate(${i * 45 + 22.5}deg)`
+                                    }}
                                 >
-                                    {typeof segment.value === 'number' ? (
-                                        <span className="text-white font-bold text-lg drop-shadow-md">{segment.value}</span>
-                                    ) : (
-                                        segment.icon
-                                    )}
+                                    {/* Position content towards the edge */}
+                                    <div className="absolute top-4 left-1/2 -translate-x-1/2 transform">
+                                        {/* Rotate icon back if needed, or keep it radial. Let's keep radial for wheel look */}
+                                        <div className="drop-shadow-sm text-2xl">
+                                            {segment.icon}
+                                        </div>
+                                    </div>
                                 </div>
                             ))}
+                            
+                            {/* Inner White Center to verify separation */}
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 rounded-full"></div>
                         </div>
 
-                        {/* Spin Button in the center */}
+                        {/* CENTER SPIN BUTTON */}
                         <button
                             onClick={handleSpinClick}
                             disabled={!canSpin}
-                            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-white border-4 border-yellow-300 shadow-lg flex flex-col items-center justify-center text-red-500 font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-transform hover:scale-110 active:scale-100 disabled:scale-100 z-10"
+                            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-white border-4 border-yellow-400 shadow-xl flex flex-col items-center justify-center text-[var(--dark)] font-bold z-20 hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {isAdLoading ? (
-                                <i className="fa-solid fa-spinner fa-spin text-xl"></i>
-                            ) : (
-                                <>
-                                    <i className="fa-solid fa-play text-xl mb-1"></i>
-                                    <span className="text-sm">SPIN</span>
-                                </>
-                            )}
+                            {isAdLoading ? <i className="fa-solid fa-spinner fa-spin"></i> : 'SPIN'}
                         </button>
                     </div>
 
-                    {/* Status Bar & Messages */}
-                    <div>
-                        <div className="flex justify-around items-center bg-gray-100 p-3 rounded-xl">
-                            <button onClick={handleOpenInfo} className="w-8 h-8 flex items-center justify-center text-[var(--gray)] hover:text-[var(--dark)] bg-white rounded-full shadow"><i className="fa-solid fa-info"></i></button>
+                    {/* STATS */}
+                    <div className="w-full max-w-xs">
+                        <div className="flex justify-around items-center bg-[var(--bg-input)] border border-[var(--border-color)] p-3 rounded-xl">
+                            <button onClick={() => setInfoModalOpen(true)} className="w-8 h-8 bg-[var(--bg-card)] rounded-full shadow text-[var(--gray)]"><i className="fa-solid fa-info"></i></button>
                             <div className="text-center">
-                                <p className="text-xs text-[var(--gray)]">Spins Left</p>
+                                <p className="text-xs text-[var(--gray)]">Left</p>
                                 <p className="font-bold text-[var(--dark)]">{spinsLeft}</p>
                             </div>
                             <div className="text-center">
                                 <p className="text-xs text-[var(--gray)]">Wins</p>
-                                <p className="font-bold text-green-500">{spinWheelState.winsToday}</p>
+                                <p className="font-bold text-green-600">{spinWheelState.winsToday}</p>
                             </div>
                             <div className="text-center">
                                 <p className="text-xs text-[var(--gray)]">Losses</p>
-                                <p className="font-bold text-red-500">{spinWheelState.lossesToday}</p>
+                                <p className="font-bold text-red-600">{spinWheelState.lossesToday}</p>
                             </div>
                         </div>
-                        
-                        <div className="mt-2 space-y-2">
-                             {spinsLeft <= 0 && !isSpinning && (
-                                <p className="text-center text-sm text-blue-600 bg-blue-100 p-2 rounded-lg">
-                                    <i className="fa-solid fa-clock mr-2"></i>You have used all your spins. Come back tomorrow!
-                                </p>
-                            )}
-                            {!isOnline && (
-                                <p className="text-center text-sm text-red-600 bg-red-100 p-2 rounded-lg">
-                                    <i className="fa-solid fa-wifi-slash mr-2"></i>You are offline. Please check your connection.
-                                </p>
-                            )}
-                        </div>
                     </div>
+
                 </div>
             </Modal>
             

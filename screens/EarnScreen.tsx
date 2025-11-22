@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import DailyCheckinModal from '../components/modals/DailyCheckinModal';
 import LuckyWheelModal from '../components/modals/LuckyWheelModal';
 import Modal from '../components/Modal';
+import InPageBanner from '../components/InPageBanner';
 import { SpinWheelState, UserProfile, Screen } from '../types';
 import { saveSpinResult, getUserProfile } from '../services/firestoreService';
 import { getAuth } from 'firebase/auth';
@@ -88,7 +89,7 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigate, onEarnPoints, userP
             const profile = await getUserProfile(auth.currentUser);
             if (profile) {
                 setCurrentUserProfile(profile);
-                const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Maputo" });
+                const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
                 if (profile.spinStats && profile.spinStats.lastDate === todayStr) {
                     setSpinWheelState({
                         spinsToday: profile.spinStats.count,
@@ -165,7 +166,7 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigate, onEarnPoints, userP
         if (!auth.currentUser) return;
 
         const points = typeof prize === 'number' ? prize : 0;
-        const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Maputo" });
+        const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
         setSpinWheelState(prevState => ({
             spinsToday: prevState.spinsToday + 1,
@@ -195,6 +196,9 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigate, onEarnPoints, userP
                     <EarnCard key={option.title} option={option} onClick={() => handleCardClick(option.title)} />
                 ))}
             </div>
+            
+            {/* IN-PAGE BANNER AD */}
+            <InPageBanner />
 
             <div className="bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] text-white rounded-xl shadow-xl p-4 text-center flex-shrink-0 mt-4">
                  <div className="flex items-center justify-center mb-2">

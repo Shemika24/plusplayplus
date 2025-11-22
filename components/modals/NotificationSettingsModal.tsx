@@ -17,9 +17,9 @@ const ToggleRow: React.FC<{
     checked: boolean; 
     onChange: (checked: boolean) => void 
 }> = ({ icon, label, description, checked, onChange }) => (
-    <div className="flex items-center justify-between py-4 border-b border-gray-100 last:border-b-0">
+    <div className="flex items-center justify-between py-4 border-b border-[var(--border-color)] last:border-b-0">
         <div className="flex items-start flex-1 mr-4">
-            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center mr-3 flex-shrink-0">
+            <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center mr-3 flex-shrink-0">
                 <i className={`${icon} text-[var(--primary)] text-lg`}></i>
             </div>
             <div>
@@ -62,7 +62,7 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({ i
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Notification Settings">
             <div className="p-4">
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-2 mb-6">
+                <div className="bg-[var(--bg-card)] rounded-xl shadow-sm border border-[var(--border-color)] px-2 mb-6">
                     <ToggleRow 
                         icon="fa-solid fa-money-bill-transfer" 
                         label="Withdrawals" 

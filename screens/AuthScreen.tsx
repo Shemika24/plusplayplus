@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import { signInUser, signUpUser, sendPasswordResetEmailHandler } from '../services/authService';
 import InfoModal from '../components/modals/InfoModal';
@@ -48,7 +47,7 @@ const AuthScreen: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-[var(--gray-light)] flex flex-col justify-center items-center p-4">
+        <div className="min-h-screen bg-[var(--gray-light)] flex flex-col justify-center items-center p-4 transition-colors duration-300">
             <div className="w-full max-w-md">
                 <div className="text-center mb-8">
                     <div className="inline-block bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] p-3 rounded-2xl shadow-lg">
@@ -62,7 +61,7 @@ const AuthScreen: React.FC = () => {
                     </p>
                 </div>
 
-                <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8">
+                <div className="bg-[var(--bg-card)] rounded-2xl shadow-xl p-6 md:p-8 border border-[var(--border-color)] transition-colors duration-300">
                     {renderContent()}
                 </div>
             </div>
@@ -86,13 +85,13 @@ const PasswordInput: React.FC<{ id: string; value: string; onChange: (e: React.C
         <div className="relative">
             <input
                 id={id}
-                className="w-full p-3 pr-10 bg-[var(--gray-light)] border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition"
+                className="w-full p-3 pr-10 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition text-[var(--dark)]"
                 type="text" 
                 style={{ WebkitTextSecurity: showPassword ? 'none' : 'disc' }}
             />
             <input
                 id={id}
-                className="w-full p-3 pr-10 bg-[var(--gray-light)] border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition absolute inset-0 z-10"
+                className="w-full p-3 pr-10 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition absolute inset-0 z-10 text-[var(--dark)]"
                 type={showPassword ? 'text' : 'password'}
                 placeholder={placeholder}
                 value={value}
@@ -141,7 +140,7 @@ const SignInForm: React.FC<{ onToggleView: (view: AuthView) => void }> = ({ onTo
                 <label className="text-sm font-medium text-[var(--gray)]" htmlFor="email">Email</label>
                 <input
                     id="email"
-                    className="mt-1 w-full p-3 bg-[var(--gray-light)] border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition"
+                    className="mt-1 w-full p-3 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition text-[var(--dark)]"
                     type="email"
                     placeholder="you@example.com"
                     value={email}
@@ -157,13 +156,13 @@ const SignInForm: React.FC<{ onToggleView: (view: AuthView) => void }> = ({ onTo
             
             <div className="flex items-center justify-between">
                 <div className="flex items-center">
-                    <input type="checkbox" id="rememberMe" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="h-4 w-4 rounded text-[var(--primary)] focus:ring-[var(--primary)]" />
+                    <input type="checkbox" id="rememberMe" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="h-4 w-4 rounded text-[var(--primary)] focus:ring-[var(--primary)] bg-[var(--bg-input)] border-[var(--border-color)]" />
                     <label htmlFor="rememberMe" className="ml-2 block text-sm text-[var(--gray)]">Remember Me</label>
                 </div>
                 <button type="button" onClick={() => onToggleView('forgotPassword')} className="text-sm text-[var(--primary)] hover:underline">Forgot password?</button>
             </div>
 
-            {error && <p className="text-red-500 text-sm text-center bg-red-100 p-3 rounded-lg">{error}</p>}
+            {error && <p className="text-red-500 text-sm text-center bg-red-100 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">{error}</p>}
             
             <button
                 type="submit"
@@ -271,7 +270,7 @@ const SignUpForm: React.FC<{ onToggleView: (view: AuthView) => void; setModalSta
                  <label className="text-sm font-medium text-[var(--gray)]" htmlFor="name">Full Name</label>
                 <input
                     id="name"
-                    className="mt-1 w-full p-3 bg-[var(--gray-light)] border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition"
+                    className="mt-1 w-full p-3 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition text-[var(--dark)]"
                     type="text"
                     placeholder="John Doe"
                     value={name}
@@ -284,7 +283,7 @@ const SignUpForm: React.FC<{ onToggleView: (view: AuthView) => void; setModalSta
                 <label className="text-sm font-medium text-[var(--gray)]" htmlFor="signup-email">Email</label>
                 <input
                     id="signup-email"
-                    className="mt-1 w-full p-3 bg-[var(--gray-light)] border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition"
+                    className="mt-1 w-full p-3 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition text-[var(--dark)]"
                     type="email"
                     placeholder="you@example.com"
                     value={email}
@@ -310,10 +309,10 @@ const SignUpForm: React.FC<{ onToggleView: (view: AuthView) => void; setModalSta
                         type="checkbox"
                         checked={acceptedTerms}
                         onChange={(e) => setAcceptedTerms(e.target.checked)}
-                        className="w-4 h-4 border border-gray-300 rounded bg-gray-50 focus:ring-3 focus:ring-[var(--primary)]"
+                        className="w-4 h-4 border border-[var(--border-color)] rounded bg-[var(--bg-input)] focus:ring-3 focus:ring-[var(--primary)]"
                     />
                 </div>
-                <label htmlFor="terms" className="ml-2 text-sm font-medium text-gray-600">
+                <label htmlFor="terms" className="ml-2 text-sm font-medium text-[var(--gray)]">
                     I agree to the <a href="#" target="_blank" rel="noopener noreferrer" className="text-[var(--primary)] hover:underline">Terms of Service</a> and <a href="#" target="_blank" rel="noopener noreferrer" className="text-[var(--primary)] hover:underline">Privacy Policy</a>.
                 </label>
             </div>
@@ -380,7 +379,7 @@ const ForgotPasswordForm: React.FC<{ onToggleView: (view: AuthView) => void; set
                 <label className="text-sm font-medium text-[var(--gray)]" htmlFor="reset-email">Email</label>
                 <input
                     id="reset-email"
-                    className="mt-1 w-full p-3 bg-[var(--gray-light)] border border-gray-200 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition"
+                    className="mt-1 w-full p-3 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition text-[var(--dark)]"
                     type="email"
                     placeholder="you@example.com"
                     value={email}

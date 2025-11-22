@@ -5,10 +5,13 @@ import HomeScreen from './components/HomeScreen';
 import AuthScreen from './screens/AuthScreen';
 import OfflineStatusDetector from './components/OfflineStatusDetector';
 import { onAuthStateChangedListener, signOutUser } from './services/authService';
-import { getUserProfile } from './services/firestoreService';
+import { getUserProfile, createUserProfileDocument } from './services/firestoreService';
 import { User } from 'firebase/auth';
 import { UserProfile } from './types';
 import { applyTheme } from './utils/themes';
+import { storageService } from './utils/storage';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from './firebase';
 
 const App: React.FC = () => {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -16,61 +19,112 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
+  // 1. Initialize Theme from LocalStorage on Mount
   useEffect(() => {
+    const initTheme = async () => {
+      const savedTheme = await storageService.getItem('app_theme');
+      if (savedTheme) {
+        applyTheme(savedTheme);
+      } else {
+        applyTheme('light'); // Default
+      }
+    };
+    initTheme();
+
     const timer = setTimeout(() => {
       setIsSplashTimeOver(true);
-    }, 6000); // Minimum 6 seconds splash screen
+    }, 6000);
 
     return () => clearTimeout(timer);
   }, []);
 
+  // 2. Real-time User Profile Listener
   useEffect(() => {
-    const unsubscribe = onAuthStateChangedListener(async (user) => {
+    let unsubscribeSnapshot: () => void;
+
+    const unsubscribeAuth = onAuthStateChangedListener(async (user) => {
       if (user) {
         setCurrentUser(user);
-        const profile = await getUserProfile(user);
-        setUserProfile(profile);
-        if (profile?.theme) {
-            applyTheme(profile.theme);
+        
+        // Initial check to ensure profile exists
+        try {
+            const profileCheck = await getUserProfile(user);
+            if (!profileCheck) {
+                // Fallback creation handled in getUserProfile, but double check here
+                await createUserProfileDocument(user, { fullName: user.displayName || 'User' });
+            }
+        } catch (e) {
+            console.error("Profile init check failed", e);
         }
+
+        // SET UP REAL-TIME LISTENER
+        const userDocRef = doc(db, "users", user.uid);
+        unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data() as UserProfile;
+                // Apply theme if changed from another device
+                if (data.theme) applyTheme(data.theme);
+                setUserProfile(data);
+            }
+        }, (error) => {
+            console.error("Real-time profile error:", error);
+        });
+
       } else {
         setCurrentUser(null);
         setUserProfile(null);
-        applyTheme('light'); // Default to light on logout
+        if (unsubscribeSnapshot) unsubscribeSnapshot();
       }
       setIsAuthLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+        unsubscribeAuth();
+        if (unsubscribeSnapshot) unsubscribeSnapshot();
+    };
   }, []);
 
   const handleLogout = async () => {
     await signOutUser();
-  };
-  
-  const handleProfileUpdate = (updatedData: Partial<UserProfile>) => {
-    setUserProfile(prev => {
-        if (!prev) return null;
-        const newProfile = { ...prev, ...updatedData };
-        if (updatedData.theme) {
-            applyTheme(updatedData.theme);
-        }
-        return newProfile;
-    });
+    setCurrentUser(null);
+    setUserProfile(null);
   };
 
-  const showSplashScreen = isAuthLoading || !isSplashTimeOver;
+  const handleProfileUpdate = (data: Partial<UserProfile>) => {
+      // Optimistic update for immediate UI response
+      // The real-time listener will overwrite this shortly after with server data
+      if (userProfile) {
+        const updatedProfile = { ...userProfile, ...data };
+        setUserProfile(updatedProfile);
+        
+        if (data.theme) {
+            applyTheme(data.theme);
+            storageService.setItem('app_theme', data.theme);
+        }
+      }
+  };
+
+  if (!isSplashTimeOver || isAuthLoading) {
+    return <SplashScreen />;
+  }
+
+  if (!currentUser || !userProfile) {
+    return (
+      <>
+        <OfflineStatusDetector />
+        <AuthScreen />
+      </>
+    );
+  }
 
   return (
     <>
       <OfflineStatusDetector />
-      {showSplashScreen ? (
-        <SplashScreen />
-      ) : !currentUser || !userProfile ? (
-        <AuthScreen />
-      ) : (
-        <HomeScreen userProfile={userProfile} onLogout={handleLogout} onProfileUpdate={handleProfileUpdate} />
-      )}
+      <HomeScreen 
+        userProfile={userProfile} 
+        onLogout={handleLogout} 
+        onProfileUpdate={handleProfileUpdate}
+      />
     </>
   );
 };

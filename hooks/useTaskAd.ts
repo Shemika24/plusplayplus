@@ -1,4 +1,5 @@
 
+
 import { useState, useCallback, useRef, useEffect } from 'react';
 
 interface UseTaskAdOptions {
@@ -75,7 +76,7 @@ export const useTaskAd = ({ onReward, onError }: UseTaskAdOptions) => {
                 console.log("Opening Interstitial Ad...");
                 // Fire and forget the ad call, we rely on our own timer for the reward logic
                 showAdFn().catch((err: any) => {
-                    console.warn("Interstitial Ad failed/closed:", err);
+                    console.warn("Interstitial Ad failed/closed:", err instanceof Error ? err.message : String(err));
                     // We continue with the timer even if ad fails or is closed, 
                     // to match the behavior of "Requires X seconds"
                 });
@@ -123,7 +124,7 @@ export const useTaskAd = ({ onReward, onError }: UseTaskAdOptions) => {
             });
 
         } catch (error) {
-            console.error("Ad error:", error);
+            console.error("Ad error:", error instanceof Error ? error.message : String(error));
             clearAllTimers();
             setIsAdActive(false);
             isAdActiveRef.current = false;

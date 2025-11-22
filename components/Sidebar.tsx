@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { SidebarProps, Screen } from '../types';
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -8,20 +8,40 @@ const Sidebar: React.FC<SidebarProps> = ({
   currentScreen,
   navigateTo,
   onInviteFriends,
-  onWithdrawalSettings,
   onHelpCenter,
   onLogout,
 }) => {
+  const [currentTime, setCurrentTime] = useState<string>("");
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString('en-US', {
+        timeZone: 'America/New_York',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false // Set to false to use 24-hour format (0-23)
+      });
+      setCurrentTime(timeString);
+    };
+
+    updateTime();
+    const intervalId = setInterval(updateTime, 1000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
   const menuItems: { id: Screen; label: string; icon: string }[] = [
     { id: 'Home', label: 'Home', icon: 'fa-solid fa-house' },
     { id: 'Tasks', label: 'Tasks', icon: 'fa-solid fa-list-check' },
     { id: 'Wallet', label: 'Wallet', icon: 'fa-solid fa-wallet' },
+    { id: 'Rank', label: 'Rank', icon: 'fa-solid fa-ranking-star' },
     { id: 'Profile', label: 'Profile', icon: 'fa-solid fa-user' },
   ];
 
   const secondaryMenuItems = [
     { label: 'Referrals', icon: 'fa-solid fa-user-plus', action: onInviteFriends },
-    { label: 'Withdrawal Settings', icon: 'fa-solid fa-money-bill-transfer', action: onWithdrawalSettings },
     { label: 'Help Center', icon: 'fa-solid fa-circle-info', action: onHelpCenter },
     { label: 'Logout', icon: 'fa-solid fa-right-from-bracket', action: onLogout, isLogout: true },
   ];
@@ -52,11 +72,15 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="bg-[var(--primary)] text-white p-6 pb-8 flex items-center gap-4 shadow-md flex-shrink-0">
-              <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
                   <i className="fa-solid fa-gem text-2xl"></i>
               </div>
-              <div>
-                  <span className="font-bold text-xl">DYVERZE ADS</span>
+              <div className="flex flex-col items-start">
+                  <div className="font-bold text-xl leading-tight">DYVERZE ADS</div>
+                  <div className="font-mono mt-1 flex items-center text-blue-100 font-medium text-sm">
+                      <i className="fa-regular fa-clock mr-2"></i>
+                      <span>{currentTime || "--:--:--"}</span>
+                  </div>
               </div>
           </div>
 

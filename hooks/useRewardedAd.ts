@@ -1,5 +1,4 @@
 
-
 import { useState, useCallback, useRef, useEffect } from 'react';
 
 // Define global types for the external script
@@ -31,40 +30,12 @@ export const useRewardedAd = ({
     
     const viewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const isAdActiveRef = useRef(false); // Ref to track active state inside event listeners
-    const timeLeftRef = useRef(0); // Ref to track time inside event listeners
+    const isAdActiveRef = useRef(false); 
     const preloadedAdRef = useRef(false);
-    const hasLeftAppRef = useRef(false); // Track if the user actually left the app
 
     // Cleanup timers on unmount
     useEffect(() => {
         return () => clearAllTimers();
-    }, []);
-
-    // --- VISIBILITY DETECTION LOGIC ---
-    useEffect(() => {
-        const handleVisibilityChange = () => {
-            // If the app becomes hidden (user went to ad), mark as left
-            // This logic generally applies to Pop ads where we monitor active time
-            if (document.hidden && isAdActiveRef.current) {
-                hasLeftAppRef.current = true;
-            }
-
-            // If app becomes visible (user came back)
-            if (!document.hidden && isAdActiveRef.current) {
-                // If they came back and time is still remaining (with 1s buffer)
-                if (timeLeftRef.current > 1) {
-                    console.log('User returned too early. Ad verification failed.');
-                    cancelAd(true); // true = isSystemCancellation
-                }
-            }
-        };
-
-        document.addEventListener("visibilitychange", handleVisibilityChange);
-        return () => {
-            document.removeEventListener("visibilitychange", handleVisibilityChange);
-        };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const clearAllTimers = useCallback(() => {
@@ -103,7 +74,7 @@ export const useRewardedAd = ({
             preloadedAdRef.current = true;
             console.log('Ad preloaded successfully');
         } catch (error) {
-            console.warn('Preload failed:', error);
+            console.warn('Preload failed:', error instanceof Error ? error.message : String(error));
         } finally {
             setIsPreloading(false);
         }
@@ -113,7 +84,6 @@ export const useRewardedAd = ({
         if (isLoading) return;
 
         setIsLoading(true);
-        hasLeftAppRef.current = false; // Reset exit tracking
         const trackingId = generateTrackingId(userId);
         
         if (typeof window.show_10206331 !== 'function') {
@@ -130,7 +100,7 @@ export const useRewardedAd = ({
                 // For interstitials, we don't track specific view time in the same way
                 onReward({ trackingId, viewTime: 0 });
             }).catch((err: any) => {
-                console.warn("Interstitial Ad failed:", err);
+                console.warn("Interstitial Ad failed:", err instanceof Error ? err.message : String(err));
                 setIsLoading(false);
                 if (onError) onError(err);
             });
@@ -143,48 +113,51 @@ export const useRewardedAd = ({
         try {
             console.log(`Opening pop ad popup, required view time: ${viewTime}s`);
             
-            await window.show_10206331({ 
+            // Fire the ad call - we don't await strict completion to ensure timer starts immediately
+            window.show_10206331({ 
                 type: 'pop', 
                 ymid: trackingId 
-            });
+            }).catch(e => console.log("Ad window likely blocked or closed", e));
 
-            // Ad opened successfully
+            // Ad opened successfully (or process started)
             setIsAdActive(true);
             isAdActiveRef.current = true;
             
             setTimeLeft(viewTime);
-            timeLeftRef.current = viewTime;
             
-            setIsLoading(false); // Stop loading spinner, show countdown overlay
+            setIsLoading(false); 
 
-            // Start Countdown
+            // Start Robust Countdown (Date-based for background accuracy)
+            const startTime = Date.now();
+            const endTime = startTime + (viewTime * 1000);
+
             return new Promise<void>((resolve, reject) => {
+                // Clear any existing interval
+                if (countdownRef.current) clearInterval(countdownRef.current);
+
                 countdownRef.current = setInterval(() => {
-                    setTimeLeft((prev) => {
-                        const newVal = prev - 1;
-                        timeLeftRef.current = newVal; // Sync ref for event listener
+                    const now = Date.now();
+                    const remainingMs = endTime - now;
+                    const remainingSeconds = Math.ceil(remainingMs / 1000);
 
-                        if (newVal <= 0) {
-                            if (countdownRef.current) clearInterval(countdownRef.current);
-                            return 0;
-                        }
-                        return newVal;
-                    });
-                }, 1000);
+                    setTimeLeft(remainingSeconds > 0 ? remainingSeconds : 0);
 
-                viewTimerRef.current = setTimeout(() => {
-                    // Success!
-                    clearAllTimers();
-                    setIsAdActive(false);
-                    isAdActiveRef.current = false;
-                    preloadedAdRef.current = false; // Reset preload state
-                    onReward({ trackingId, viewTime });
-                    resolve();
-                }, viewTime * 1000);
+                    if (remainingMs <= 0) {
+                        // Timer Finished
+                        if (countdownRef.current) clearInterval(countdownRef.current);
+                        
+                        // Success!
+                        setIsAdActive(false);
+                        isAdActiveRef.current = false;
+                        preloadedAdRef.current = false; // Reset preload state
+                        onReward({ trackingId, viewTime });
+                        resolve();
+                    }
+                }, 200); // Check frequently, but rely on Date.now() for accuracy
             });
 
         } catch (error) {
-            console.error('Ad process error:', error);
+            console.error('Ad process error:', error instanceof Error ? error.message : String(error));
             clearAllTimers();
             setIsAdActive(false);
             isAdActiveRef.current = false;
@@ -218,6 +191,5 @@ export const useRewardedAd = ({
         isPreloading,
         isAdActive,
         timeLeft,
-        // Removed isTelegramWebView
     };
 };

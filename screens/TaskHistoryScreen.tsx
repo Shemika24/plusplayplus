@@ -21,7 +21,7 @@ const TaskHistoryItem: React.FC<{ item: TaskHistory }> = ({ item }) => {
         }
 
         return dateObj.toLocaleString("en-US", {
-            timeZone: "Africa/Maputo",
+            timeZone: "America/New_York",
             year: 'numeric',
             month: 'short',
             day: 'numeric',

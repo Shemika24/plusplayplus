@@ -63,8 +63,8 @@ const generateTasks = (count: number, idStartIndex: number, type: 'Interstitial'
         if (taskType === 'Interstitial') {
             return 15;
         } else { // Pop Ad
-            const durations = [10, 15, 20];
-            return durations[Math.floor(Math.random() * durations.length)];
+            // STRICTLY 15 or 20 seconds. No 10s allowed.
+            return Math.random() < 0.5 ? 15 : 20;
         }
     };
 
@@ -371,6 +371,7 @@ export const claimDailyCheckIn = async (uid: string, reward: number, todayStr: s
         const data = userDoc.data() as UserProfile;
         const currentCheckIn = data.dailyCheckIn || { lastDate: '', streak: 0 };
 
+        // Strict server-side check
         if (currentCheckIn.lastDate === todayStr) {
              throw new Error("Already checked in today");
         }
@@ -620,21 +621,44 @@ export const getDailyTaskState = async (uid: string) => {
     let stateDoc = await getDoc(taskDocRef);
     let state: UserDailyState;
 
-    // Use Mozambique time for date comparison
-    const getMozambiqueDate = (date: Date) => {
-        const dateString = date.toLocaleDateString("en-CA", { timeZone: "Africa/Maputo" });
-        return dateString; // Returns YYYY-MM-DD in Maputo time
+    // Use New York time for date comparison
+    const getTargetDate = (date: Date) => {
+        const dateString = date.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+        return dateString; // Returns YYYY-MM-DD in New York time
     };
 
-    const currentMaputoDateStr = getMozambiqueDate(new Date());
-    const lastUpdatedMaputoDateStr = stateDoc.exists() ? getMozambiqueDate(stateDoc.data()!.lastUpdated.toDate()) : '';
+    const currentTargetDateStr = getTargetDate(new Date());
+    const lastUpdatedTargetDateStr = stateDoc.exists() ? getTargetDate(stateDoc.data()!.lastUpdated.toDate()) : '';
 
-    if (!stateDoc.exists() || lastUpdatedMaputoDateStr !== currentMaputoDateStr) {
-        // If no state exists or it's from a previous day (Maputo time), create a new one.
+    if (!stateDoc.exists() || lastUpdatedTargetDateStr !== currentTargetDateStr) {
+        // If no state exists or it's from a previous day (New York time), create a new one.
         state = await createNewDailyState(uid);
     } else {
         state = stateDoc.data() as UserDailyState;
         
+        // DATA MIGRATION FIX:
+        // If user has existing 10s tasks in their DB (from previous code), upgrade them to 15s instantly.
+        let dataModified = false;
+        const sanitizeTask = (t: UiTask) => {
+            if (t.duration === 10) {
+                t.duration = 15;
+                dataModified = true;
+            }
+            return t;
+        };
+
+        state.currentBatch = state.currentBatch.map(sanitizeTask);
+        state.remainingTasks = state.remainingTasks.map(sanitizeTask);
+
+        if (dataModified) {
+            // Persist the migrated data so we don't have to do it again
+            // Using updateDoc with the specific fields to avoid overwriting other state changes if any
+            await updateDoc(taskDocRef, {
+                currentBatch: state.currentBatch,
+                remainingTasks: state.remainingTasks
+            });
+        }
+
         // Check if the user is on a break and if the break time has ended.
         if (state.isOnBreak && state.breakEndTime && state.breakEndTime.toDate() <= new Date()) {
             // Break is over. Load the next batch of tasks.
@@ -734,7 +758,7 @@ export const getNotifications = async (uid: string): Promise<Notification[]> => 
             const data = doc.data();
             let timeStr = '';
             if (data.timestamp && typeof data.timestamp.toDate === 'function') {
-                timeStr = data.timestamp.toDate().toLocaleString("en-US", { timeZone: "Africa/Maputo" });
+                timeStr = data.timestamp.toDate().toLocaleString("en-US", { timeZone: "America/New_York" });
             } else if (data.date) {
                  timeStr = data.date;
             }

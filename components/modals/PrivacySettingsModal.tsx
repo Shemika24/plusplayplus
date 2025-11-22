@@ -17,9 +17,9 @@ const ToggleRow: React.FC<{
     checked: boolean; 
     onChange: (checked: boolean) => void 
 }> = ({ icon, label, description, checked, onChange }) => (
-    <div className="flex items-center justify-between py-4 border-b border-gray-100 last:border-b-0">
+    <div className="flex items-center justify-between py-4 border-b border-[var(--border-color)] last:border-b-0">
         <div className="flex items-start flex-1 mr-4">
-            <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center mr-3 flex-shrink-0">
+            <div className="w-10 h-10 rounded-full bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center mr-3 flex-shrink-0">
                 <i className={`${icon} text-purple-600 text-lg`}></i>
             </div>
             <div>
@@ -62,7 +62,7 @@ const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({ isOpen, onC
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Privacy Settings">
             <div className="p-4">
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-2 mb-6">
+                <div className="bg-[var(--bg-card)] rounded-xl shadow-sm border border-[var(--border-color)] px-2 mb-6">
                     <ToggleRow 
                         icon="fa-solid fa-trophy" 
                         label="Rank Visibility" 
@@ -96,9 +96,9 @@ const PrivacySettingsModal: React.FC<PrivacySettingsModalProps> = ({ isOpen, onC
                     />
                 </div>
                 
-                <div className="bg-yellow-50 border border-yellow-100 rounded-xl p-3 mb-6 flex items-start">
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800 rounded-xl p-3 mb-6 flex items-start">
                     <i className="fa-solid fa-shield-halved text-yellow-600 mt-1 mr-3"></i>
-                    <p className="text-xs text-yellow-800">
+                    <p className="text-xs text-yellow-800 dark:text-yellow-200">
                         We value your privacy. Your sensitive data (email, phone, payment info) is never shared publicly, regardless of these settings.
                     </p>
                 </div>

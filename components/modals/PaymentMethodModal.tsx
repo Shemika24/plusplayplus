@@ -173,52 +173,52 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
         const isSaved = !!existingDetail;
 
         return (
-            <div key={methodConfig.name} className={`bg-white border rounded-xl mb-3 transition-all duration-300 overflow-hidden ${isExpanded ? `border-[var(--primary)] shadow-md` : 'border-gray-200 hover:border-gray-300'}`}>
+            <div key={methodConfig.name} className={`bg-[var(--bg-card)] border rounded-xl mb-3 transition-all duration-300 overflow-hidden ${isExpanded ? `border-[var(--primary)] shadow-md` : 'border-[var(--border-color)] hover:border-gray-400 dark:hover:border-gray-600'}`}>
                 {/* Card Header / Clickable Area */}
                 <button 
                     onClick={() => handleMethodClick(methodConfig.name)}
-                    className="w-full flex items-center justify-between p-4 bg-white focus:outline-none"
+                    className="w-full flex items-center justify-between p-4 bg-[var(--bg-card)] focus:outline-none"
                 >
                     <div className="flex items-center">
                          <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-4 ${methodConfig.colors.bg}`}>
                              {typeof methodConfig.icon === 'string' ? <i className={`${methodConfig.icon} ${methodConfig.colors.icon} text-xl`}></i> : methodConfig.icon}
                         </div>
                         <div className="text-left">
-                            <p className="font-bold text-gray-800">{methodConfig.name}</p>
+                            <p className="font-bold text-[var(--dark)]">{methodConfig.name}</p>
                             {isSaved && !isExpanded && (
                                 <p className="text-xs text-green-600 font-medium flex items-center mt-0.5">
                                     <i className="fa-solid fa-check-circle mr-1"></i> Configured
                                 </p>
                             )}
                             {!isSaved && !isExpanded && (
-                                <p className="text-xs text-gray-400">Tap to configure</p>
+                                <p className="text-xs text-[var(--gray)]">Tap to configure</p>
                             )}
                         </div>
                     </div>
-                    <i className={`fa-solid fa-chevron-down text-gray-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}></i>
+                    <i className={`fa-solid fa-chevron-down text-[var(--gray)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}></i>
                 </button>
 
                 {/* Expanded Content */}
                 {isExpanded && (
-                    <div className="p-4 pt-0 bg-white animate-fadeIn">
-                        <div className="h-px bg-gray-100 w-full mb-4"></div>
+                    <div className="p-4 pt-0 bg-[var(--bg-card)] animate-fadeIn">
+                        <div className="h-px bg-[var(--border-color)] w-full mb-4"></div>
                         
                          {methodConfig.name === 'Crypto' && (
                             <div className="relative mb-4" ref={dropdownRef}>
-                                <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Cryptocurrency</label>
+                                <label className="block text-xs font-bold text-[var(--gray)] mb-1 uppercase">Cryptocurrency</label>
                                 <button
                                     onClick={() => setIsCryptoDropdownOpen(!isCryptoDropdownOpen)}
-                                    className="w-full flex items-center justify-between px-3 py-3 text-left bg-gray-50 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all"
+                                    className="w-full flex items-center justify-between px-3 py-3 text-left bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all"
                                 >
                                     {selectedCrypto ? (
-                                        <span className="text-gray-900 font-medium">{selectedCrypto.name}</span>
+                                        <span className="text-[var(--dark)] font-medium">{selectedCrypto.name}</span>
                                     ) : (
-                                        <span className="text-gray-400">Select Coin...</span>
+                                        <span className="text-[var(--gray)]">Select Coin...</span>
                                     )}
-                                    <i className={`fa-solid fa-chevron-down text-gray-400 transition-transform ${isCryptoDropdownOpen ? 'rotate-180' : ''}`}></i>
+                                    <i className={`fa-solid fa-chevron-down text-[var(--gray)] transition-transform ${isCryptoDropdownOpen ? 'rotate-180' : ''}`}></i>
                                 </button>
                                 {isCryptoDropdownOpen && (
-                                    <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-auto">
+                                    <div className="absolute z-20 w-full mt-1 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl shadow-xl max-h-48 overflow-auto">
                                         {cryptocurrencies.map(crypto => (
                                             <button
                                                 key={crypto.id}
@@ -227,7 +227,7 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
                                                     setIsCryptoDropdownOpen(false);
                                                     setError('');
                                                 }}
-                                                className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-50 last:border-b-0"
+                                                className="w-full text-left px-4 py-3 text-sm text-[var(--dark)] hover:bg-[var(--bg-card-hover)] border-b border-[var(--border-color)] last:border-b-0"
                                             >
                                                 {crypto.name}
                                             </button>
@@ -238,7 +238,7 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
                         )}
 
                         <div className="mb-4">
-                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
+                            <label className="block text-xs font-bold text-[var(--gray)] mb-1 uppercase">
                                 {methodConfig.name === 'Crypto' ? 'Wallet Address' : 'Account Details'}
                             </label>
                             <input
@@ -251,19 +251,19 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
                                 }}
                                 placeholder={methodConfig.name === 'Crypto' ? (selectedCrypto?.placeholder || 'Select coin first') : methodConfig.placeholder}
                                 disabled={methodConfig.name === 'Crypto' && !selectedCrypto}
-                                className="w-full px-3 py-3 bg-gray-50 border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-[var(--primary)] focus:outline-none disabled:bg-gray-100 disabled:text-gray-400 transition-all font-medium text-gray-900"
+                                className="w-full px-3 py-3 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl shadow-sm focus:ring-2 focus:ring-[var(--primary)] focus:outline-none disabled:bg-[var(--gray-light)] disabled:text-[var(--gray)] transition-all font-medium text-[var(--dark)]"
                             />
                         </div>
 
                         {error && (
-                            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-center mb-3 animate-fadeIn">
+                            <div className="bg-red-50 dark:bg-red-900/20 text-red-600 p-3 rounded-lg text-sm flex items-center mb-3 animate-fadeIn">
                                 <i className="fa-solid fa-circle-exclamation mr-2"></i>
                                 {error}
                             </div>
                         )}
 
                          {successMsg && (
-                            <div className="bg-green-50 text-green-600 p-3 rounded-lg text-sm flex items-center mb-3 animate-fadeIn">
+                            <div className="bg-green-50 dark:bg-green-900/20 text-green-600 p-3 rounded-lg text-sm flex items-center mb-3 animate-fadeIn">
                                 <i className="fa-solid fa-check-circle mr-2"></i>
                                 {successMsg}
                             </div>
@@ -287,46 +287,44 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Manage Payment Methods">
              {isProfileComplete ? (
-                <div className="p-4 bg-gray-50 max-h-[70vh] overflow-y-auto">
+                <div className="p-4 bg-[var(--bg-input)] max-h-[70vh] overflow-y-auto">
                     {/* Important Security Notice */}
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-5 flex items-start">
+                    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4 mb-5 flex items-start">
                         <i className="fa-solid fa-triangle-exclamation text-yellow-600 mt-1 mr-3 flex-shrink-0 text-lg"></i>
                         <div>
-                            <p className="font-bold text-yellow-800 text-sm">Important: Ownership Verification</p>
-                            <p className="text-xs text-yellow-700 mt-1">
+                            <p className="font-bold text-yellow-800 dark:text-yellow-200 text-sm">Important: Ownership Verification</p>
+                            <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
                                 For security reasons, the account holder for <strong>PayPal, Payeer, Payoneer, and Airtm</strong> MUST match your profile name. We do not process payments to third-party accounts.
                             </p>
                         </div>
                     </div>
 
-                    <p className="text-sm text-gray-500 mb-4">
+                    <p className="text-sm text-[var(--gray)] mb-4">
                         Configure your withdrawal methods below. You can save multiple methods and choose one when withdrawing.
                     </p>
 
                     {paymentMethods.map(config => renderContent(config))}
                 </div>
             ) : (
-                 <div className="p-6 bg-white flex flex-col items-center text-center">
-                    <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-4 text-red-500">
+                 <div className="p-6 bg-[var(--bg-card)] flex flex-col items-center text-center">
+                    <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4 text-red-500">
                         <i className="fa-solid fa-user-lock text-3xl"></i>
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Profile Incomplete</h3>
-                    <p className="text-gray-500 mb-6 text-sm">
+                    <h3 className="text-xl font-bold text-[var(--dark)] mb-2">Profile Incomplete</h3>
+                    <p className="text-[var(--gray)] mb-6 text-sm">
                         To ensure security and regulatory compliance, you must complete your profile information before adding payment methods.
                     </p>
                     
-                    <div className="w-full bg-red-50 border border-red-100 rounded-xl p-4 mb-6 text-left">
-                        <p className="text-xs font-bold text-red-800 uppercase tracking-wide mb-2">Missing Information:</p>
+                    <div className="w-full bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 rounded-xl p-4 mb-6 text-left">
+                        <p className="text-xs font-bold text-red-800 dark:text-red-300 uppercase tracking-wide mb-2">Missing Information:</p>
                         <ul className="space-y-2">
                             {missingFields.map((field, idx) => (
-                                <li key={idx} className="flex items-center text-red-700 text-sm">
+                                <li key={idx} className="flex items-center text-red-700 dark:text-red-400 text-sm">
                                     <i className="fa-solid fa-circle-xmark mr-2"></i> {field}
                                 </li>
                             ))}
                         </ul>
                     </div>
-                    
-                    {/* Removed "Go to Profile" button as requested */}
                  </div>
             )}
              <style>{`

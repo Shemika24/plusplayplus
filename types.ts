@@ -13,7 +13,6 @@ export interface SidebarProps {
   currentScreen: Screen;
   navigateTo: (screen: Screen) => void;
   onInviteFriends: () => void;
-  onWithdrawalSettings: () => void;
   onHelpCenter: () => void;
   onLogout: () => void;
 }

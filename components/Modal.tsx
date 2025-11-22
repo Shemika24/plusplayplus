@@ -27,16 +27,16 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, maxWidt
         aria-modal="true"
         aria-labelledby="modal-title"
       >
-        <div className={`relative bg-white rounded-2xl shadow-2xl w-full ${maxWidth} transform transition-all duration-300 scale-95 opacity-0 animate-modal-pop-in`}>
+        <div className={`relative bg-[var(--bg-card)] rounded-2xl shadow-2xl w-full ${maxWidth} transform transition-all duration-300 scale-95 opacity-0 animate-modal-pop-in border border-[var(--border-color)]`}>
           {title && (
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
               <h2 id="modal-title" className="text-lg font-bold text-[var(--dark)]">
                 {title}
               </h2>
               {isDismissible && (
                 <button
                   onClick={onClose}
-                  className="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100"
+                  className="text-[var(--gray)] hover:text-[var(--dark)] w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-input)]"
                   aria-label="Close modal"
                 >
                   <i className="fa-solid fa-times text-xl"></i>
@@ -48,7 +48,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, maxWidt
           {!title && isDismissible && (
              <button
                 onClick={onClose}
-                className="absolute top-2 right-2 text-gray-500 bg-white/70 hover:text-gray-800 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 z-10"
+                className="absolute top-2 right-2 text-[var(--gray)] bg-[var(--bg-card)]/70 hover:text-[var(--dark)] w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-input)] z-10"
                 aria-label="Close modal"
               >
                 <i className="fa-solid fa-times text-xl"></i>
