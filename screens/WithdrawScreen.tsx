@@ -142,6 +142,39 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
             return;
         }
 
+        // HIGH VALUE WITHDRAWAL CHECK ($50+)
+        if (amountNumber >= 50) {
+            if (!userProfile?.avatarUrl) {
+                setError("For withdrawals of $50 or more, you must have a profile photo.");
+                return;
+            }
+
+            // Check if photo is older than 3 months
+            let lastUpdateDate: Date | null = null;
+            if (userProfile.lastAvatarUpdate) {
+                 if (typeof userProfile.lastAvatarUpdate.toDate === 'function') {
+                     lastUpdateDate = userProfile.lastAvatarUpdate.toDate();
+                 } else {
+                     // Fallback for basic string/number timestamp
+                     lastUpdateDate = new Date(userProfile.lastAvatarUpdate);
+                 }
+            }
+            
+            // If we have no timestamp for the avatar (migration case), force update
+            if (!lastUpdateDate) {
+                setError("For security on withdrawals of $50+, please update your profile photo.");
+                return;
+            }
+
+            const threeMonthsAgo = new Date();
+            threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+            if (lastUpdateDate < threeMonthsAgo) {
+                setError("Security Check: For withdrawals of $50+, your profile photo must be updated every 3 months. Please update it via camera in your Profile.");
+                return;
+            }
+        }
+
         const methodString = selectedPaymentDetails.method === 'Crypto' && selectedPaymentDetails.cryptoName 
             ? `${selectedPaymentDetails.cryptoName}` 
             : selectedPaymentDetails.method;
@@ -263,13 +296,7 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
                                         <i className="fa-solid fa-triangle-exclamation text-yellow-600 dark:text-yellow-300 text-xl"></i>
                                     </div>
                                     <h4 className="font-bold text-yellow-800 dark:text-yellow-200 mb-1">No Payment Methods</h4>
-                                    <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-4">You haven't saved any withdrawal methods yet.</p>
-                                    <button 
-                                        onClick={() => alert("Please go to Profile > Settings > Payment Methods to add one.")}
-                                        className="bg-white dark:bg-gray-800 text-yellow-700 dark:text-yellow-300 font-bold py-2 px-4 rounded-lg border border-yellow-200 dark:border-yellow-700 shadow-sm hover:bg-yellow-50 dark:hover:bg-yellow-900/30"
-                                    >
-                                        Add Method in Profile
-                                    </button>
+                                    <p className="text-sm text-yellow-700 dark:text-yellow-300">Please go to Profile > Settings > Payment Methods to add one.</p>
                                 </div>
                             )}
                         </div>

@@ -15,64 +15,65 @@ interface Country {
   code: string;
   flagUrl: string;
   name: string;
+  minLength: number; // Validation length
 }
 
-// Static list to avoid "Failed to fetch" errors and ensure reliability
+// Static list with specific lengths (9, 10, 11 etc)
 const ALL_COUNTRIES: Country[] = [
-    { name: "United States", code: "+1", flagUrl: "https://flagcdn.com/us.svg" },
-    { name: "Mozambique", code: "+258", flagUrl: "https://flagcdn.com/mz.svg" },
-    { name: "United Kingdom", code: "+44", flagUrl: "https://flagcdn.com/gb.svg" },
-    { name: "Brazil", code: "+55", flagUrl: "https://flagcdn.com/br.svg" },
-    { name: "Portugal", code: "+351", flagUrl: "https://flagcdn.com/pt.svg" },
-    { name: "Canada", code: "+1", flagUrl: "https://flagcdn.com/ca.svg" },
-    { name: "South Africa", code: "+27", flagUrl: "https://flagcdn.com/za.svg" },
-    { name: "Nigeria", code: "+234", flagUrl: "https://flagcdn.com/ng.svg" },
-    { name: "India", code: "+91", flagUrl: "https://flagcdn.com/in.svg" },
-    { name: "China", code: "+86", flagUrl: "https://flagcdn.com/cn.svg" },
-    { name: "Russia", code: "+7", flagUrl: "https://flagcdn.com/ru.svg" },
-    { name: "Japan", code: "+81", flagUrl: "https://flagcdn.com/jp.svg" },
-    { name: "Germany", code: "+49", flagUrl: "https://flagcdn.com/de.svg" },
-    { name: "France", code: "+33", flagUrl: "https://flagcdn.com/fr.svg" },
-    { name: "Spain", code: "+34", flagUrl: "https://flagcdn.com/es.svg" },
-    { name: "Italy", code: "+39", flagUrl: "https://flagcdn.com/it.svg" },
-    { name: "Australia", code: "+61", flagUrl: "https://flagcdn.com/au.svg" },
-    { name: "Mexico", code: "+52", flagUrl: "https://flagcdn.com/mx.svg" },
-    { name: "Argentina", code: "+54", flagUrl: "https://flagcdn.com/ar.svg" },
-    { name: "Colombia", code: "+57", flagUrl: "https://flagcdn.com/co.svg" },
-    { name: "Indonesia", code: "+62", flagUrl: "https://flagcdn.com/id.svg" },
-    { name: "Turkey", code: "+90", flagUrl: "https://flagcdn.com/tr.svg" },
-    { name: "Saudi Arabia", code: "+966", flagUrl: "https://flagcdn.com/sa.svg" },
-    { name: "Egypt", code: "+20", flagUrl: "https://flagcdn.com/eg.svg" },
-    { name: "Vietnam", code: "+84", flagUrl: "https://flagcdn.com/vn.svg" },
-    { name: "Thailand", code: "+66", flagUrl: "https://flagcdn.com/th.svg" },
-    { name: "Kenya", code: "+254", flagUrl: "https://flagcdn.com/ke.svg" },
-    { name: "Angola", code: "+244", flagUrl: "https://flagcdn.com/ao.svg" },
-    { name: "Ghana", code: "+233", flagUrl: "https://flagcdn.com/gh.svg" },
-    { name: "Zimbabwe", code: "+263", flagUrl: "https://flagcdn.com/zw.svg" },
-    { name: "Zambia", code: "+260", flagUrl: "https://flagcdn.com/zm.svg" },
-    { name: "Tanzania", code: "+255", flagUrl: "https://flagcdn.com/tz.svg" },
-    { name: "Botswana", code: "+267", flagUrl: "https://flagcdn.com/bw.svg" },
-    { name: "Namibia", code: "+264", flagUrl: "https://flagcdn.com/na.svg" },
-    { name: "Philippines", code: "+63", flagUrl: "https://flagcdn.com/ph.svg" },
-    { name: "Pakistan", code: "+92", flagUrl: "https://flagcdn.com/pk.svg" },
-    { name: "Bangladesh", code: "+880", flagUrl: "https://flagcdn.com/bd.svg" },
-    { name: "South Korea", code: "+82", flagUrl: "https://flagcdn.com/kr.svg" },
-    { name: "Malaysia", code: "+60", flagUrl: "https://flagcdn.com/my.svg" },
-    { name: "Poland", code: "+48", flagUrl: "https://flagcdn.com/pl.svg" },
-    { name: "Ukraine", code: "+380", flagUrl: "https://flagcdn.com/ua.svg" },
-    { name: "Netherlands", code: "+31", flagUrl: "https://flagcdn.com/nl.svg" },
-    { name: "Belgium", code: "+32", flagUrl: "https://flagcdn.com/be.svg" },
-    { name: "Sweden", code: "+46", flagUrl: "https://flagcdn.com/se.svg" },
-    { name: "Switzerland", code: "+41", flagUrl: "https://flagcdn.com/ch.svg" },
-    { name: "Austria", code: "+43", flagUrl: "https://flagcdn.com/at.svg" },
-    { name: "Greece", code: "+30", flagUrl: "https://flagcdn.com/gr.svg" },
-    { name: "United Arab Emirates", code: "+971", flagUrl: "https://flagcdn.com/ae.svg" },
-    { name: "Israel", code: "+972", flagUrl: "https://flagcdn.com/il.svg" },
+    { name: "United States", code: "+1", flagUrl: "https://flagcdn.com/us.svg", minLength: 10 },
+    { name: "Mozambique", code: "+258", flagUrl: "https://flagcdn.com/mz.svg", minLength: 9 },
+    { name: "United Kingdom", code: "+44", flagUrl: "https://flagcdn.com/gb.svg", minLength: 10 },
+    { name: "Brazil", code: "+55", flagUrl: "https://flagcdn.com/br.svg", minLength: 11 },
+    { name: "Portugal", code: "+351", flagUrl: "https://flagcdn.com/pt.svg", minLength: 9 },
+    { name: "Canada", code: "+1", flagUrl: "https://flagcdn.com/ca.svg", minLength: 10 },
+    { name: "South Africa", code: "+27", flagUrl: "https://flagcdn.com/za.svg", minLength: 9 },
+    { name: "Nigeria", code: "+234", flagUrl: "https://flagcdn.com/ng.svg", minLength: 10 },
+    { name: "India", code: "+91", flagUrl: "https://flagcdn.com/in.svg", minLength: 10 },
+    { name: "China", code: "+86", flagUrl: "https://flagcdn.com/cn.svg", minLength: 11 },
+    { name: "Russia", code: "+7", flagUrl: "https://flagcdn.com/ru.svg", minLength: 10 },
+    { name: "Japan", code: "+81", flagUrl: "https://flagcdn.com/jp.svg", minLength: 10 },
+    { name: "Germany", code: "+49", flagUrl: "https://flagcdn.com/de.svg", minLength: 10 }, // Often 10 or 11 without 0
+    { name: "France", code: "+33", flagUrl: "https://flagcdn.com/fr.svg", minLength: 9 },
+    { name: "Spain", code: "+34", flagUrl: "https://flagcdn.com/es.svg", minLength: 9 },
+    { name: "Italy", code: "+39", flagUrl: "https://flagcdn.com/it.svg", minLength: 10 },
+    { name: "Australia", code: "+61", flagUrl: "https://flagcdn.com/au.svg", minLength: 9 },
+    { name: "Mexico", code: "+52", flagUrl: "https://flagcdn.com/mx.svg", minLength: 10 },
+    { name: "Argentina", code: "+54", flagUrl: "https://flagcdn.com/ar.svg", minLength: 10 }, // Mobile 9 + digit 9
+    { name: "Colombia", code: "+57", flagUrl: "https://flagcdn.com/co.svg", minLength: 10 },
+    { name: "Indonesia", code: "+62", flagUrl: "https://flagcdn.com/id.svg", minLength: 10 }, // Varies, usually 10-12
+    { name: "Turkey", code: "+90", flagUrl: "https://flagcdn.com/tr.svg", minLength: 10 },
+    { name: "Saudi Arabia", code: "+966", flagUrl: "https://flagcdn.com/sa.svg", minLength: 9 },
+    { name: "Egypt", code: "+20", flagUrl: "https://flagcdn.com/eg.svg", minLength: 10 },
+    { name: "Vietnam", code: "+84", flagUrl: "https://flagcdn.com/vn.svg", minLength: 9 },
+    { name: "Thailand", code: "+66", flagUrl: "https://flagcdn.com/th.svg", minLength: 9 },
+    { name: "Kenya", code: "+254", flagUrl: "https://flagcdn.com/ke.svg", minLength: 9 },
+    { name: "Angola", code: "+244", flagUrl: "https://flagcdn.com/ao.svg", minLength: 9 },
+    { name: "Ghana", code: "+233", flagUrl: "https://flagcdn.com/gh.svg", minLength: 9 },
+    { name: "Zimbabwe", code: "+263", flagUrl: "https://flagcdn.com/zw.svg", minLength: 9 },
+    { name: "Zambia", code: "+260", flagUrl: "https://flagcdn.com/zm.svg", minLength: 9 },
+    { name: "Tanzania", code: "+255", flagUrl: "https://flagcdn.com/tz.svg", minLength: 9 },
+    { name: "Botswana", code: "+267", flagUrl: "https://flagcdn.com/bw.svg", minLength: 8 },
+    { name: "Namibia", code: "+264", flagUrl: "https://flagcdn.com/na.svg", minLength: 9 },
+    { name: "Philippines", code: "+63", flagUrl: "https://flagcdn.com/ph.svg", minLength: 10 },
+    { name: "Pakistan", code: "+92", flagUrl: "https://flagcdn.com/pk.svg", minLength: 10 },
+    { name: "Bangladesh", code: "+880", flagUrl: "https://flagcdn.com/bd.svg", minLength: 10 },
+    { name: "South Korea", code: "+82", flagUrl: "https://flagcdn.com/kr.svg", minLength: 10 },
+    { name: "Malaysia", code: "+60", flagUrl: "https://flagcdn.com/my.svg", minLength: 9 },
+    { name: "Poland", code: "+48", flagUrl: "https://flagcdn.com/pl.svg", minLength: 9 },
+    { name: "Ukraine", code: "+380", flagUrl: "https://flagcdn.com/ua.svg", minLength: 9 },
+    { name: "Netherlands", code: "+31", flagUrl: "https://flagcdn.com/nl.svg", minLength: 9 },
+    { name: "Belgium", code: "+32", flagUrl: "https://flagcdn.com/be.svg", minLength: 9 },
+    { name: "Sweden", code: "+46", flagUrl: "https://flagcdn.com/se.svg", minLength: 9 },
+    { name: "Switzerland", code: "+41", flagUrl: "https://flagcdn.com/ch.svg", minLength: 9 },
+    { name: "Austria", code: "+43", flagUrl: "https://flagcdn.com/at.svg", minLength: 10 },
+    { name: "Greece", code: "+30", flagUrl: "https://flagcdn.com/gr.svg", minLength: 10 },
+    { name: "United Arab Emirates", code: "+971", flagUrl: "https://flagcdn.com/ae.svg", minLength: 9 },
+    { name: "Israel", code: "+972", flagUrl: "https://flagcdn.com/il.svg", minLength: 9 },
 ];
 
 // --- Sub-Components ---
-const InfoRow: React.FC<{ icon: string; label: string; value: string; isEditable?: boolean; onChange?: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void; name?: string; type?: string; as?: 'textarea' }> = 
-({ icon, label, value, isEditable = false, onChange, name, type = 'text', as }) => {
+const InfoRow: React.FC<{ icon: string; label: string; value: string; isEditable?: boolean; onChange?: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void; name?: string; type?: string; as?: 'textarea'; error?: string }> = 
+({ icon, label, value, isEditable = false, onChange, name, type = 'text', as, error }) => {
     
     if (isEditable) {
         const commonProps = {
@@ -80,7 +81,7 @@ const InfoRow: React.FC<{ icon: string; label: string; value: string; isEditable
             id: name,
             value: value || '',
             onChange,
-            className: "mt-1 w-full p-2 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition text-[var(--dark)]"
+            className: `mt-1 w-full p-2 bg-[var(--bg-input)] border ${error ? 'border-red-500' : 'border-[var(--border-color)]'} rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition text-[var(--dark)]`
         };
         return (
             <div className="flex items-start py-3 border-b border-[var(--border-color)] last:border-b-0">
@@ -92,6 +93,7 @@ const InfoRow: React.FC<{ icon: string; label: string; value: string; isEditable
                     ) : (
                         <input {...commonProps} type={type} />
                     )}
+                    {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
                 </div>
             </div>
         );
@@ -362,6 +364,7 @@ interface ProfileScreenProps {
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpdate }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState<Partial<UserProfile>>(userProfile);
+    const [errors, setErrors] = useState<{ [key: string]: string }>({});
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     
     // Phone Input Logic
@@ -370,6 +373,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [countrySearch, setCountrySearch] = useState('');
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     
     const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
     const [settingsModalContent, setSettingsModalContent] = useState<{ title: string; message: string } | null>(null);
@@ -453,14 +457,84 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
         setPhoneNumber(numericValue);
     };
 
-    const handleSave = async () => {
-        // Combine country code and phone number
-        const fullPhone = selectedCountry && phoneNumber ? `${selectedCountry.code}${phoneNumber}` : '';
+    const handleImageCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64String = reader.result as string;
+                setFormData(prev => ({ ...prev, avatarUrl: base64String }));
+                
+                // Explicitly check if we should save this immediately or wait for "Save" button?
+                // The original code waited for handleSave. We will do the same, but
+                // we track that the avatar changed in formData.
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
+    const handleSave = async () => {
+        const newErrors: { [key: string]: string } = {};
+        
+        // Name Validation (Min 3 chars, letters only)
+        const name = formData.fullName?.trim() || '';
+        const nameRegex = /^[a-zA-Z\s]+$/;
+
+        if (name.length < 3) {
+            newErrors.fullName = "Name must be at least 3 characters.";
+        } else if (!nameRegex.test(name)) {
+            newErrors.fullName = "Name must contain only letters (no numbers or symbols).";
+        }
+
+        // DOB Validation (13+ Years)
+        if (isEditing && !userProfile.dob && formData.dob) { 
+             const birthDate = new Date(formData.dob);
+             const today = new Date();
+             let age = today.getFullYear() - birthDate.getFullYear();
+             const m = today.getMonth() - birthDate.getMonth();
+             if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                 age--;
+             }
+             if (age < 13) {
+                 newErrors.dob = "You must be at least 13 years old to use this app.";
+             }
+        }
+
+        // Phone Validation (Country code specific length)
+        const fullPhone = selectedCountry && phoneNumber ? `${selectedCountry.code}${phoneNumber}` : '';
+        const phoneHasChanged = fullPhone !== userProfile.phone;
+
+        if (isEditing && phoneHasChanged) {
+            if (!phoneNumber || phoneNumber.trim().length === 0) {
+                 newErrors.phone = "Phone number is required.";
+            } else if (!/^\d+$/.test(phoneNumber)) {
+                 newErrors.phone = "Only numbers allowed.";
+            } else {
+                 // STRICT: Validate against country specific length
+                 const requiredLen = selectedCountry.minLength;
+                 if (phoneNumber.length !== requiredLen) {
+                     newErrors.phone = `Invalid length. ${selectedCountry.name} requires exactly ${requiredLen} digits after the code.`;
+                 }
+            }
+        }
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            return;
+        }
+        setErrors({}); // Clear errors
+
+        // Proceed with saving
         const dataToUpdate: Partial<UserProfile> = {
             fullName: formData.fullName,
             bio: formData.bio,
         };
+
+        // Handle Avatar Update
+        if (formData.avatarUrl !== userProfile.avatarUrl) {
+            dataToUpdate.avatarUrl = formData.avatarUrl;
+            dataToUpdate.lastAvatarUpdate = serverTimestamp();
+        }
 
         // Update DOB and Address if they were previously empty and now set
         if (!userProfile.dob && formData.dob) {
@@ -470,8 +544,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
             dataToUpdate.address = formData.address;
         }
         
-        const phoneHasChanged = fullPhone !== userProfile.phone;
-    
         if (phoneHasChanged) {
             if (!canEditPhone) {
                 alert(`You can only update your phone number once every 30 days. Time left: ${timeLeftForPhoneEdit}`);
@@ -486,7 +558,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
         try {
             await updateUserProfile(userProfile.uid, dataToUpdate);
             // Update local optimistic state including phone reconstruction
-            const updatedProfile = { ...formData, phone: fullPhone };
+            const updatedProfile = { 
+                ...formData, 
+                phone: fullPhone,
+                lastAvatarUpdate: formData.avatarUrl !== userProfile.avatarUrl ? new Date() : userProfile.lastAvatarUpdate
+            };
             onProfileUpdate(updatedProfile);
             setFormData(updatedProfile);
             setIsEditing(false);
@@ -528,6 +604,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
 
     const handleCancel = () => {
         setFormData(userProfile);
+        setErrors({});
         
         // Reset phone to original state
         if (userProfile.phone) {
@@ -575,14 +652,26 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
             {/* Profile Header */}
             <div className="bg-gradient-to-b from-[var(--bg-card)] to-[var(--bg-card)] p-6 flex flex-col items-center text-center border-b border-[var(--border-color)]">
                 <div className="relative">
-                    {userProfile.avatarUrl ? (
-                         <img src={userProfile.avatarUrl} alt="User Avatar" className="w-24 h-24 rounded-full border-4 border-[var(--bg-card)] shadow-lg bg-gray-300 object-cover" />
+                    {formData.avatarUrl ? (
+                         <img src={formData.avatarUrl} alt="User Avatar" className="w-24 h-24 rounded-full border-4 border-[var(--bg-card)] shadow-lg bg-gray-300 object-cover" />
                     ) : (
                         <div className="w-24 h-24 rounded-full border-4 border-[var(--bg-card)] shadow-lg bg-gray-300 flex items-center justify-center">
                             <i className="fa-solid fa-user text-5xl text-gray-500"></i>
                         </div>
                     )}
-                    <button className="absolute -bottom-1 -right-1 w-8 h-8 bg-[var(--primary)] text-white rounded-full flex items-center justify-center border-2 border-[var(--bg-card)] shadow-md hover:bg-[var(--primary-dark)] transition-colors">
+                    {/* Hidden file input restricted to camera with capture="user" */}
+                    <input 
+                        type="file" 
+                        accept="image/*" 
+                        capture="user"
+                        ref={fileInputRef}
+                        onChange={handleImageCapture}
+                        className="hidden"
+                    />
+                    <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="absolute -bottom-1 -right-1 w-8 h-8 bg-[var(--primary)] text-white rounded-full flex items-center justify-center border-2 border-[var(--bg-card)] shadow-md hover:bg-[var(--primary-dark)] transition-colors"
+                    >
                         <i className="fa-solid fa-camera"></i>
                     </button>
                 </div>
@@ -616,7 +705,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                             </button>
                         )}
                     </div>
-                    <InfoRow icon="fa-solid fa-user" label="Full Name" value={formData.fullName || ''} name="fullName" onChange={handleFormChange} isEditable={isEditing} />
+                    <InfoRow 
+                        icon="fa-solid fa-user" 
+                        label="Full Name" 
+                        value={formData.fullName || ''} 
+                        name="fullName" 
+                        onChange={handleFormChange} 
+                        isEditable={isEditing} 
+                        error={errors.fullName}
+                    />
                     <InfoRow icon="fa-solid fa-envelope" label="Email" value={formData.email || ''} isEditable={false} />
                     <InfoRow icon="fa-solid fa-align-left" label="Bio" value={formData.bio || ''} name="bio" onChange={handleFormChange} isEditable={isEditing} as="textarea" />
                     <InfoRow 
@@ -627,6 +724,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                         type="date"
                         onChange={handleFormChange}
                         isEditable={isEditing && !userProfile.dob} 
+                        error={errors.dob}
                     />
                     <InfoRow 
                         icon="fa-solid fa-location-dot" 
@@ -643,49 +741,52 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                         <div className="w-full">
                             <p className="text-xs text-[var(--gray)]">Phone Number</p>
                             {isEditing ? (
-                                <div className="flex items-center mt-1">
-                                    <div className="relative" ref={dropdownRef}>
-                                        <button 
-                                            onClick={() => setIsDropdownOpen(!isDropdownOpen)} 
-                                            disabled={!canEditPhone}
-                                            className="flex items-center justify-center h-10 w-28 bg-[var(--bg-input)] rounded-l-md border border-r-0 border-[var(--border-color)] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:cursor-not-allowed text-[var(--dark)] hover:bg-[var(--bg-card-hover)] transition-colors"
-                                        >
-                                            {selectedCountry && (
-                                                <>
-                                                    <img src={selectedCountry.flagUrl} alt="" className="w-5 h-auto mr-2" />
-                                                    <span className="text-sm font-semibold">{selectedCountry.code}</span>
-                                                </>
-                                            )}
-                                        </button>
-                                        {isDropdownOpen && (
-                                            <div className="absolute z-10 bottom-full mb-2 w-64 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-md shadow-lg">
-                                                <input
-                                                    type="text"
-                                                    placeholder="Search country..."
-                                                    value={countrySearch}
-                                                    onChange={(e) => setCountrySearch(e.target.value)}
-                                                    className="w-full px-3 py-2 border-b border-[var(--border-color)] focus:outline-none bg-[var(--bg-card)] text-[var(--dark)]"
-                                                />
-                                                <div className="max-h-48 overflow-y-auto">
-                                                    {filteredCountries.map(country => (
-                                                        <button key={country.code + country.name} onClick={() => { setSelectedCountry(country); setIsDropdownOpen(false); setCountrySearch(''); }} className="w-full text-left px-3 py-2 text-sm text-[var(--dark)] hover:bg-[var(--bg-card-hover)] flex items-center gap-2">
-                                                            <img src={country.flagUrl} alt={country.name} className="w-5 h-auto" />
-                                                            <span className="truncate">{country.name} ({country.code})</span>
-                                                        </button>
-                                                    ))}
+                                <div className="flex flex-col mt-1">
+                                    <div className="flex items-center">
+                                        <div className="relative" ref={dropdownRef}>
+                                            <button 
+                                                onClick={() => setIsDropdownOpen(!isDropdownOpen)} 
+                                                disabled={!canEditPhone}
+                                                className="flex items-center justify-center h-10 w-28 bg-[var(--bg-input)] rounded-l-md border border-r-0 border-[var(--border-color)] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:cursor-not-allowed text-[var(--dark)] hover:bg-[var(--bg-card-hover)] transition-colors"
+                                            >
+                                                {selectedCountry && (
+                                                    <>
+                                                        <img src={selectedCountry.flagUrl} alt="" className="w-5 h-auto mr-2" />
+                                                        <span className="text-sm font-semibold">{selectedCountry.code}</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                            {isDropdownOpen && (
+                                                <div className="absolute z-10 bottom-full mb-2 w-64 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-md shadow-lg">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search country..."
+                                                        value={countrySearch}
+                                                        onChange={(e) => setCountrySearch(e.target.value)}
+                                                        className="w-full px-3 py-2 border-b border-[var(--border-color)] focus:outline-none bg-[var(--bg-card)] text-[var(--dark)]"
+                                                    />
+                                                    <div className="max-h-48 overflow-y-auto">
+                                                        {filteredCountries.map(country => (
+                                                            <button key={country.code + country.name} onClick={() => { setSelectedCountry(country); setIsDropdownOpen(false); setCountrySearch(''); }} className="w-full text-left px-3 py-2 text-sm text-[var(--dark)] hover:bg-[var(--bg-card-hover)] flex items-center gap-2">
+                                                                <img src={country.flagUrl} alt={country.name} className="w-5 h-auto" />
+                                                                <span className="truncate">{country.name} ({country.code})</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
+                                        <input 
+                                            type="tel"
+                                            name="phone"
+                                            value={phoneNumber}
+                                            onChange={handlePhoneChange}
+                                            placeholder={`e.g. ${'0'.repeat(selectedCountry.minLength)}`}
+                                            disabled={!canEditPhone}
+                                            className={`h-10 px-3 w-full border ${errors.phone ? 'border-red-500' : 'border-[var(--border-color)]'} rounded-r-md text-sm font-semibold text-[var(--dark)] bg-[var(--bg-input)] focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--primary)] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:cursor-not-allowed outline-none`} 
+                                        />
                                     </div>
-                                    <input 
-                                        type="tel"
-                                        name="phone"
-                                        value={phoneNumber}
-                                        onChange={handlePhoneChange}
-                                        placeholder="Mobile number"
-                                        disabled={!canEditPhone}
-                                        className="h-10 px-3 w-full border border-[var(--border-color)] rounded-r-md text-sm font-semibold text-[var(--dark)] bg-[var(--bg-input)] focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--primary)] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:cursor-not-allowed outline-none" 
-                                    />
+                                    {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
                                 </div>
                             ) : (
                                 <p className="font-semibold text-[var(--dark)] mt-1">
@@ -736,7 +837,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                 isOpen={isInfoModalOpen}
                 onClose={() => setIsInfoModalOpen(false)}
                 title="Personal Information"
-                message={`Your Full Name, Bio, and Phone Number can be edited.\n\n• Email, Date of Birth, and Address cannot be changed for security reasons once set.\n• Your Phone Number can only be updated once every 30 days.${!canEditPhone ? `\n\nTime until next phone update: ${timeLeftForPhoneEdit}` : ''}`}
+                message={`Your Full Name, Bio, and Phone Number can be edited.\n\n• Name must be 3+ chars, letters only.\n• You must be 13+ years old.\n• Email, Date of Birth, and Address cannot be changed for security reasons once set.\n• Your Phone Number can only be updated once every 30 days.${!canEditPhone ? `\n\nTime until next phone update: ${timeLeftForPhoneEdit}` : ''}`}
                 type="info"
                 actions={[{ text: 'Got it', onClick: () => setIsInfoModalOpen(false), primary: true }]}
             />

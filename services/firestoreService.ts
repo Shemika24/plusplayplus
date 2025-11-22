@@ -50,21 +50,16 @@ const POINTS_PER_DOLLAR = 142857;
 
 const generateTasks = (count: number, idStartIndex: number, type: 'Interstitial' | 'Pop'): Task[] => {
     const getPoints = (taskType: 'Interstitial' | 'Pop'): number => {
-        if (taskType === 'Interstitial') {
-            const min = 35; const max = 45;
-            return Math.floor(Math.random() * (max - min + 1)) + min;
-        } else {
-            const min = 45; const max = 55;
-            return Math.floor(Math.random() * (max - min + 1)) + min;
-        }
+        const pointsOptions = [50, 75, 100];
+        const randomIndex = Math.floor(Math.random() * pointsOptions.length);
+        return pointsOptions[randomIndex];
     };
 
     const getDuration = (taskType: 'Interstitial' | 'Pop'): number => {
         if (taskType === 'Interstitial') {
-            return 15;
+            return 16; // Max 16s
         } else { // Pop Ad
-            // STRICTLY 15 or 20 seconds. No 10s allowed.
-            return Math.random() < 0.5 ? 15 : 20;
+            return 20; // Max 20s
         }
     };
 
@@ -81,24 +76,38 @@ const generateTasks = (count: number, idStartIndex: number, type: 'Interstitial'
 };
 
 const generateAllDailyTasks = (): UiTask[] => {
-    const interstitialTasks: UiTask[] = generateTasks(1400, 0, 'Interstitial').map(task => ({
+    const TOTAL_TASKS = 1750;
+    
+    // Ensure a mix: Minimum 100 of each type, randomize the rest
+    const minCount = 100;
+    const availableRandomSlots = TOTAL_TASKS - (minCount * 2);
+    
+    // Randomly determine Interstitial count
+    const randomAddition = Math.floor(Math.random() * (availableRandomSlots + 1));
+    const interstitialCount = minCount + randomAddition;
+    
+    // The rest are Pop ads
+    const popCount = TOTAL_TASKS - interstitialCount;
+
+    // Generate Interstitial Tasks (IDs 1 to interstitialCount)
+    const interstitialTasks: UiTask[] = generateTasks(interstitialCount, 0, 'Interstitial').map(task => ({
         ...task,
-        categoryIcon: 'fa-solid fa-rectangle-ad', // Reverted to a more appropriate icon
+        categoryIcon: 'fa-solid fa-rectangle-ad', 
         categoryIconBgColor: 'bg-red-100',
         categoryIconColor: 'text-red-500',
     }));
 
-    // ID start index is kept to ensure unique IDs across all tasks.
-    const popTasks: UiTask[] = generateTasks(1100, 1400, 'Pop').map(task => ({
+    // Generate Pop Tasks (IDs interstitialCount+1 to 1750)
+    const popTasks: UiTask[] = generateTasks(popCount, interstitialCount, 'Pop').map(task => ({
         ...task,
-        categoryIcon: 'fa-solid fa-window-restore', // Reverted to a more appropriate icon
+        categoryIcon: 'fa-solid fa-window-restore', 
         categoryIconBgColor: 'bg-blue-100',
         categoryIconColor: 'text-blue-500',
     }));
     
     const allTasks = [...interstitialTasks, ...popTasks];
     
-    // Fisher-Yates (aka Knuth) Shuffle to randomize tasks
+    // Fisher-Yates (aka Knuth) Shuffle to randomize tasks order
     for (let i = allTasks.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [allTasks[i], allTasks[j]] = [allTasks[j], allTasks[i]];
@@ -637,13 +646,25 @@ export const getDailyTaskState = async (uid: string) => {
         state = stateDoc.data() as UserDailyState;
         
         // DATA MIGRATION FIX:
-        // If user has existing 10s tasks in their DB (from previous code), upgrade them to 15s instantly.
+        // If user has existing tasks in their DB, force upgrade their duration and points
         let dataModified = false;
         const sanitizeTask = (t: UiTask) => {
-            if (t.duration === 10) {
-                t.duration = 15;
+            const isInterstitial = t.categoryIcon.includes('fa-rectangle-ad');
+            const targetDuration = isInterstitial ? 16 : 20;
+            
+            if (t.duration !== targetDuration) {
+                t.duration = targetDuration;
                 dataModified = true;
             }
+            
+            // Migrate points to be 50, 75, or 100 if they aren't already
+            const validPoints = [50, 75, 100];
+            if (!validPoints.includes(t.points)) {
+                const randomIndex = Math.floor(Math.random() * validPoints.length);
+                t.points = validPoints[randomIndex];
+                dataModified = true;
+            }
+            
             return t;
         };
 
@@ -720,9 +741,18 @@ export const completeTask = async (uid: string, taskId: number, points: number, 
             };
             
             // Check if the batch is now empty to trigger a break
-            if (newBatch.length === 0 && state.remainingTasks.length > 0) {
+            if (newBatch.length === 0) {
                 updatedState.isOnBreak = true;
-                const breakMinutes = Math.floor(Math.random() * (120 - 90 + 1)) + 90; // 90-120 mins
+                let breakMinutes: number;
+
+                if (state.remainingTasks.length > 0) {
+                    // Standard break: 30 to 60 minutes (reduced from 90-120)
+                    breakMinutes = Math.floor(Math.random() * (60 - 30 + 1)) + 30;
+                } else {
+                    // Last break (Tasks done): 12 hours (720 minutes)
+                    breakMinutes = 12 * 60;
+                }
+                
                 const breakEndTime = new Date(Date.now() + breakMinutes * 60 * 1000);
                 updatedState.breakEndTime = Timestamp.fromDate(breakEndTime);
             }

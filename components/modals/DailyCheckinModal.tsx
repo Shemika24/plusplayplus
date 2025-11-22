@@ -11,12 +11,12 @@ interface DailyCheckinModalProps {
 }
 
 const DAYS_CONFIG = [
-    { day: 1, reward: 20, icon: 'fa-coins' },
-    { day: 2, reward: 35, icon: 'fa-coins' },
-    { day: 3, reward: 55, icon: 'fa-coins' },
-    { day: 4, reward: 100, icon: 'fa-coins' },
-    { day: 5, reward: 120, icon: 'fa-coins' },
-    { day: 6, reward: 135, icon: 'fa-coins' },
+    { day: 1, reward: 50, icon: 'fa-coins' },
+    { day: 2, reward: 100, icon: 'fa-coins' },
+    { day: 3, reward: 150, icon: 'fa-coins' },
+    { day: 4, reward: 200, icon: 'fa-coins' },
+    { day: 5, reward: 300, icon: 'fa-coins' },
+    { day: 6, reward: 500, icon: 'fa-coins' },
     { day: 7, reward: 0, icon: 'fa-gift', isSurprise: true },
 ];
 
@@ -122,8 +122,12 @@ const DailyCheckinModal: React.FC<DailyCheckinModalProps> = ({ onClose, onEarnPo
 
         const dayConfig = days[dayIndex];
         let reward = dayConfig.reward;
+        
         if (dayConfig.isSurprise) {
-            reward = Math.floor(Math.random() * (500 - 100 + 1)) + 100;
+            // Surprise values: 1000, 1500, 2000, 3000, 4500, or 5000
+            const possibleRewards = [1000, 1500, 2000, 3000, 4500, 5000];
+            const randomIndex = Math.floor(Math.random() * possibleRewards.length);
+            reward = possibleRewards[randomIndex];
         }
 
         const todayStr = getTodayStr();
@@ -235,7 +239,7 @@ const DailyCheckinModal: React.FC<DailyCheckinModalProps> = ({ onClose, onEarnPo
                                 </div>
                             ) : (
                                 <span className={`text-[10px] font-bold ${isCurrent ? 'text-[var(--dark)]' : 'text-gray-400'}`}>
-                                    {isSurprise ? '???' : `+${day.reward}`}
+                                    {isSurprise ? 'Surprise' : `+${day.reward}`}
                                 </span>
                             )}
                         </button>
@@ -251,3 +255,4 @@ const DailyCheckinModal: React.FC<DailyCheckinModalProps> = ({ onClose, onEarnPo
 };
 
 export default DailyCheckinModal;
+    

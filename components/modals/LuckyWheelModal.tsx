@@ -133,14 +133,14 @@ const SpinWheelInfoModal: React.FC<{ isOpen: boolean; onClose: () => void; segme
 const LuckyWheelModal: React.FC<LuckyWheelModalProps> = ({ isOpen, onClose, spinWheelState, onSpinComplete, isOnline }) => {
     // 8 Segments configuration matching the "Wheel Prizes" concept
     const segments: Segment[] = useMemo(() => [
-        { value: 100, hexColor: '#0284c7', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '100 Pts' }, // Blue
-        { value: 300, hexColor: '#059669', icon: <i className="fa-solid fa-gem text-white text-xl"></i>, name: '300 Pts' },   // Teal
-        { value: 145, hexColor: '#7c3aed', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '145 Pts' }, // Violet
-        { value: 155, hexColor: '#e11d48', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '155 Pts' }, // Rose
-        { value: 200, hexColor: '#d97706', icon: <i className="fa-solid fa-star text-white text-xl"></i>, name: '200 Pts' }, // Amber
+        { value: 400, hexColor: '#0284c7', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '400 Pts' }, // Blue
+        { value: 5000, hexColor: '#059669', icon: <i className="fa-solid fa-gem text-white text-xl"></i>, name: '5000 Pts' },   // Teal
+        { value: 700, hexColor: '#7c3aed', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '700 Pts' }, // Violet
+        { value: 1000, hexColor: '#e11d48', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '1000 Pts' }, // Rose
+        { value: 2500, hexColor: '#d97706', icon: <i className="fa-solid fa-star text-white text-xl"></i>, name: '2500 Pts' }, // Amber
         { value: 'no_prize', hexColor: '#475569', icon: <i className="fa-solid fa-face-meh text-white text-xl"></i>, name: 'No Prize' }, // Slate
-        { value: 45, hexColor: '#65a30d', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '45 Pts' },  // Lime
-        { value: 55, hexColor: '#c026d3', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '55 Pts' },  // Fuchsia
+        { value: 100, hexColor: '#65a30d', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '100 Pts' },  // Lime
+        { value: 250, hexColor: '#c026d3', icon: <i className="fa-solid fa-coins text-white text-xl"></i>, name: '250 Pts' },  // Fuchsia
     ], []);
 
     const MAX_SPINS_PER_DAY = 10;

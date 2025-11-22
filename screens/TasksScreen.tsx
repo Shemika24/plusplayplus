@@ -204,7 +204,7 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
             
             // 5. Show Reward Modal
             setSuccessInfo({ points });
-            setTimeout(() => setSuccessInfo(null), 2000); // Shortened for smoother auto flow
+            setTimeout(() => setSuccessInfo(null), 1500); // Shortened for smoother auto flow
             
             // 6. Fetch latest state to ensure sync (silently update state to catch any server-side changes like breaks)
             const latestState = await getDailyTaskState(userProfile.uid);
@@ -243,7 +243,8 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
         const isInterstitial = task.categoryIcon.includes('fa-rectangle-ad');
         const type = isInterstitial ? 'Interstitial' : 'Pop';
         
-        const duration = isInterstitial ? 16 : task.duration + 1;
+        // Enforce strictly 16s for Interstitial and 20s for Pop as requested
+        const duration = isInterstitial ? 16 : 20;
         
         showTaskAd(task.id, task.points, duration, type);
     }, [activeTaskId, isAdActive, isAdLoading, showTaskAd]);
@@ -255,7 +256,7 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
         if (isAutoMode && activeTaskId === null && !isAdActive && !errorMessage && dailyState && dailyState.tasks.length > 0) {
             
             // Wait a moment for the success modal to be visible, then start next
-            // Increased delay to 5 seconds as requested
+            // Reduced delay to 500ms as requested (effectively removing the 5s wait)
             const autoTimer = setTimeout(() => {
                 if (dailyState.tasks.length > 0) {
                     const nextTask = dailyState.tasks[0]; // Always take the top task
@@ -263,7 +264,7 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
                 } else {
                     setIsAutoMode(false); // No more tasks
                 }
-            }, 5000); 
+            }, 500); 
 
             return () => clearTimeout(autoTimer);
         }

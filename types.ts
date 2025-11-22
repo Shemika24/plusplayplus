@@ -68,6 +68,7 @@ export interface UserProfile {
     fullName: string;
     username: string;
     avatarUrl: string;
+    lastAvatarUpdate?: any; // Timestamp for 3-month validation
     email: string;
     bio: string;
     dob: string; // ISO string 'YYYY-MM-DD'

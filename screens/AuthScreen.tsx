@@ -87,7 +87,7 @@ const PasswordInput: React.FC<{ id: string; value: string; onChange: (e: React.C
                 id={id}
                 className="w-full p-3 pr-10 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition text-[var(--dark)]"
                 type="text" 
-                style={{ WebkitTextSecurity: showPassword ? 'none' : 'disc' }}
+                style={{ WebkitTextSecurity: showPassword ? 'none' : 'disc' } as any}
             />
             <input
                 id={id}
@@ -206,6 +206,31 @@ const SignUpForm: React.FC<{ onToggleView: (view: AuthView) => void; setModalSta
             });
             return;
         }
+
+        // --- Validation for Full Name ---
+        // Min 3 characters, no numbers, no symbols
+        if (name.trim().length < 3) {
+             setModalState({
+                isOpen: true,
+                title: 'Invalid Name',
+                message: 'Full Name must be at least 3 characters long.',
+                type: 'error',
+                actions: [{ text: 'OK', onClick: closeModal, primary: true }]
+            });
+            return;
+        }
+
+        if (!/^[a-zA-Z\s]+$/.test(name.trim())) {
+            setModalState({
+                isOpen: true,
+                title: 'Invalid Name',
+                message: 'Full Name must contain only letters (no numbers or symbols).',
+                type: 'error',
+                actions: [{ text: 'OK', onClick: closeModal, primary: true }]
+            });
+            return;
+        }
+        // --------------------------------
 
         if (password !== confirmPassword) {
             setModalState({
