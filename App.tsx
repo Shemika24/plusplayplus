@@ -4,6 +4,7 @@ import SplashScreen from './components/SplashScreen';
 import HomeScreen from './components/HomeScreen';
 import AuthScreen from './screens/AuthScreen';
 import OfflineStatusDetector from './components/OfflineStatusDetector';
+import SecurityCheck from './components/SecurityCheck';
 import { onAuthStateChangedListener, signOutUser } from './services/authService';
 import { getUserProfile, createUserProfileDocument } from './services/firestoreService';
 import { User } from 'firebase/auth';
@@ -104,28 +105,26 @@ const App: React.FC = () => {
       }
   };
 
-  if (!isSplashTimeOver || isAuthLoading) {
-    return <SplashScreen />;
-  }
-
-  if (!currentUser || !userProfile) {
-    return (
-      <>
-        <OfflineStatusDetector />
-        <AuthScreen />
-      </>
-    );
-  }
-
   return (
-    <>
-      <OfflineStatusDetector />
-      <HomeScreen 
-        userProfile={userProfile} 
-        onLogout={handleLogout} 
-        onProfileUpdate={handleProfileUpdate}
-      />
-    </>
+    <SecurityCheck>
+      {(!isSplashTimeOver || isAuthLoading) ? (
+        <SplashScreen />
+      ) : (!currentUser || !userProfile) ? (
+        <>
+          <OfflineStatusDetector />
+          <AuthScreen />
+        </>
+      ) : (
+        <>
+          <OfflineStatusDetector />
+          <HomeScreen 
+            userProfile={userProfile} 
+            onLogout={handleLogout} 
+            onProfileUpdate={handleProfileUpdate}
+          />
+        </>
+      )}
+    </SecurityCheck>
   );
 };
 
