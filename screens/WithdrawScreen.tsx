@@ -98,7 +98,12 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
 
     const { feePercentage, minWithdrawal, maxWithdrawal } = useMemo(() => {
         if (!selectedPaymentDetails) return { feePercentage: 0, minWithdrawal: 0, maxWithdrawal: 0 };
-        return getMethodSpecs(selectedPaymentDetails.method, selectedPaymentDetails.cryptoName);
+        const specs = getMethodSpecs(selectedPaymentDetails.method, selectedPaymentDetails.cryptoName);
+        return {
+            feePercentage: specs.fee,
+            minWithdrawal: specs.min,
+            maxWithdrawal: specs.max
+        };
     }, [selectedPaymentDetails]);
 
     const amountNumber = parseFloat(amount) || 0;

@@ -4,7 +4,6 @@ import { Screen, Task, UserProfile, TaskHistory } from '../types';
 import { getDailyTaskState, completeTask as completeTaskInService } from '../services/firestoreService';
 import { useTaskAd } from '../hooks/useTaskAd';
 import { playSound, vibrate, SOUNDS } from '../utils/sound';
-import InPageBanner from '../components/InPageBanner';
 
 interface TasksScreenProps {
   onNavigate: (screen: Screen) => void;
@@ -139,12 +138,17 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
     const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
     const [successInfo, setSuccessInfo] = useState<{ points: number } | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [isAutoMode, setIsAutoMode] = useState(false);
     
     const fetchAndProcessTasks = useCallback(async () => {
         setIsLoadingState(true);
         try {
             const state = await getDailyTaskState(userProfile.uid);
             setDailyState(state);
+            // Disable auto mode if entering break or empty
+            if (state.isOnBreak || state.tasks.length === 0) {
+                setIsAutoMode(false);
+            }
         } catch (error) {
             console.error("Failed to fetch task state:", error);
         } finally {
@@ -200,15 +204,21 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
             
             // 5. Show Reward Modal
             setSuccessInfo({ points });
-            setTimeout(() => setSuccessInfo(null), 3000);
+            setTimeout(() => setSuccessInfo(null), 2000); // Shortened for smoother auto flow
             
             // 6. Fetch latest state to ensure sync (silently update state to catch any server-side changes like breaks)
             const latestState = await getDailyTaskState(userProfile.uid);
             setDailyState(latestState);
+            
+            // Auto Mode check if break started
+            if (latestState.isOnBreak || latestState.tasks.length === 0) {
+                setIsAutoMode(false);
+            }
 
         } catch (error: any) {
             console.error("Sync error:", error);
             setErrorMessage("Network error. Points were not saved. Please try again.");
+            setIsAutoMode(false); // Stop auto on error
             setTimeout(() => setErrorMessage(null), 4000);
         }
     }, [dailyState, userProfile.uid, onEarnPoints]);
@@ -220,10 +230,11 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
             setErrorMessage(err.message || "Task failed. Please try again.");
             setTimeout(() => setErrorMessage(null), 3000);
             setActiveTaskId(null);
+            setIsAutoMode(false); // Stop auto loop on error
         }
     });
 
-    const handleStartTask = async (task: ShuffledTask) => {
+    const handleStartTask = useCallback(async (task: ShuffledTask) => {
         if (activeTaskId !== null || isAdActive || isAdLoading) return;
         
         setActiveTaskId(task.id);
@@ -235,7 +246,36 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
         const duration = isInterstitial ? 16 : task.duration + 1;
         
         showTaskAd(task.id, task.points, duration, type);
-    };
+    }, [activeTaskId, isAdActive, isAdLoading, showTaskAd]);
+
+
+    // --- AUTO MODE LOGIC ---
+    useEffect(() => {
+        // If Auto Mode is ON, no task is active, no error, and we have tasks...
+        if (isAutoMode && activeTaskId === null && !isAdActive && !errorMessage && dailyState && dailyState.tasks.length > 0) {
+            
+            // Wait a moment for the success modal to be visible, then start next
+            // Increased delay to 5 seconds as requested
+            const autoTimer = setTimeout(() => {
+                if (dailyState.tasks.length > 0) {
+                    const nextTask = dailyState.tasks[0]; // Always take the top task
+                    handleStartTask(nextTask);
+                } else {
+                    setIsAutoMode(false); // No more tasks
+                }
+            }, 5000); 
+
+            return () => clearTimeout(autoTimer);
+        }
+        
+        // Auto-disable if break starts
+        if (dailyState?.isOnBreak) {
+            setIsAutoMode(false);
+        }
+
+    }, [isAutoMode, activeTaskId, isAdActive, errorMessage, dailyState, handleStartTask]);
+
+
     
     const progressPercentage = dailyState && dailyState.totalForDay > 0 
         ? (dailyState.completedToday / dailyState.totalForDay) * 100 : 0;
@@ -304,9 +344,16 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
                     <p className="text-white/90 font-medium text-lg animate-pulse">
                         {isAdLoading ? "Opening..." : "Verifying..."}
                     </p>
+                    
+                    {isAutoMode && (
+                        <div className="absolute top-6 right-6 bg-white/20 px-3 py-1 rounded-full flex items-center animate-pulse">
+                            <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+                            <span className="text-white text-xs font-bold">AUTO MODE</span>
+                        </div>
+                    )}
 
                     <button 
-                        onClick={() => cancelAd(false)}
+                        onClick={() => { cancelAd(false); setIsAutoMode(false); }}
                         className="mt-12 px-6 py-2 rounded-full border border-white/20 text-white/60 hover:bg-white/10 hover:text-white transition-all text-sm"
                     >
                         Cancel
@@ -324,9 +371,33 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
             <div className="bg-[var(--bg-card)] rounded-xl shadow-lg p-4 mb-6 border-l-4 border-[var(--primary)] transition-colors">
                 <div className="flex justify-between items-center mb-4">
                      <h3 className="font-bold text-lg text-[var(--dark)]">Tasks</h3>
-                     <button onClick={() => onNavigate('TaskHistory')} className="text-[var(--gray)] hover:text-[var(--dark)] transition-colors">
-                        <i className="fa-solid fa-clock-rotate-left text-xl"></i>
-                    </button>
+                     
+                     <div className="flex items-center gap-3">
+                         {/* Auto Switch */}
+                        <div className="flex items-center gap-2 bg-[var(--bg-input)] px-3 py-1.5 rounded-full border border-[var(--border-color)]">
+                             <span className={`text-xs font-bold transition-colors ${isAutoMode ? 'text-green-500' : 'text-[var(--gray)]'}`}>
+                                 AUTO
+                             </span>
+                             <button
+                                onClick={() => {
+                                    // If enabling auto mode, and we aren't already doing a task, start immediately
+                                    if (!isAutoMode && activeTaskId === null && dailyState && dailyState.tasks.length > 0) {
+                                        setIsAutoMode(true);
+                                    } else {
+                                        setIsAutoMode(!isAutoMode);
+                                    }
+                                }}
+                                disabled={!dailyState || dailyState.tasks.length === 0 || dailyState.isOnBreak}
+                                className={`w-10 h-5 rounded-full relative transition-all duration-300 ${isAutoMode ? 'bg-green-500' : 'bg-gray-300'} disabled:opacity-50`}
+                            >
+                                <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all shadow-sm ${isAutoMode ? 'left-6' : 'left-1'}`}></div>
+                            </button>
+                        </div>
+
+                        <button onClick={() => onNavigate('TaskHistory')} className="text-[var(--gray)] hover:text-[var(--dark)] transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-input)]">
+                            <i className="fa-solid fa-clock-rotate-left text-lg"></i>
+                        </button>
+                     </div>
                 </div>
                 
                 <div className="flex items-center justify-between mb-3">
@@ -353,9 +424,6 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
                     <div className="bg-[var(--primary)] h-2.5 rounded-full transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div>
                 </div>
             </div>
-
-            {/* IN-PAGE BANNER AD */}
-            <InPageBanner />
 
             {renderContent()}
         </div>

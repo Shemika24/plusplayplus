@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import DailyCheckinModal from '../components/modals/DailyCheckinModal';
 import LuckyWheelModal from '../components/modals/LuckyWheelModal';
 import Modal from '../components/Modal';
-import InPageBanner from '../components/InPageBanner';
 import { SpinWheelState, UserProfile, Screen } from '../types';
 import { saveSpinResult, getUserProfile } from '../services/firestoreService';
 import { getAuth } from 'firebase/auth';
@@ -196,9 +195,6 @@ const EarnScreen: React.FC<EarnScreenProps> = ({ onNavigate, onEarnPoints, userP
                     <EarnCard key={option.title} option={option} onClick={() => handleCardClick(option.title)} />
                 ))}
             </div>
-            
-            {/* IN-PAGE BANNER AD */}
-            <InPageBanner />
 
             <div className="bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] text-white rounded-xl shadow-xl p-4 text-center flex-shrink-0 mt-4">
                  <div className="flex items-center justify-center mb-2">

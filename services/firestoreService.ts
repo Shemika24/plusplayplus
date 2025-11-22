@@ -344,7 +344,7 @@ export const addWithdrawalRequest = async (uid: string, withdrawalItem: Omit<Wit
     const pointsToDeduct = withdrawalItem.amount * POINTS_PER_DOLLAR;
 
     const userDoc = await getDoc(userDocRef);
-    const currentPoints = userDoc.data()?.points || 0;
+    const currentPoints = (userDoc.data() as UserProfile)?.points || 0;
     if (currentPoints < pointsToDeduct) {
         throw new Error("Insufficient points for this withdrawal.");
     }
@@ -517,7 +517,7 @@ export const getTaskHistoryPaginated = async (
     const q = query(historyCollectionRef, ...constraints);
     
     const querySnapshot = await getDocs(q);
-    const history = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TaskHistory));
+    const history = querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as DocumentData) } as TaskHistory));
     const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
     
     return { history, lastVisible };
@@ -568,7 +568,7 @@ export const getWithdrawalHistoryPaginated = async (
     const q = query(historyCollectionRef, ...constraints);
     
     const querySnapshot = await getDocs(q);
-    const history = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Withdrawal));
+    const history = querySnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as DocumentData) } as Withdrawal));
     const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
     
     return { history, lastVisible };
@@ -628,7 +628,7 @@ export const getDailyTaskState = async (uid: string) => {
     };
 
     const currentTargetDateStr = getTargetDate(new Date());
-    const lastUpdatedTargetDateStr = stateDoc.exists() ? getTargetDate(stateDoc.data()!.lastUpdated.toDate()) : '';
+    const lastUpdatedTargetDateStr = stateDoc.exists() ? getTargetDate((stateDoc.data() as UserDailyState).lastUpdated.toDate()) : '';
 
     if (!stateDoc.exists() || lastUpdatedTargetDateStr !== currentTargetDateStr) {
         // If no state exists or it's from a previous day (New York time), create a new one.
@@ -755,7 +755,7 @@ export const getNotifications = async (uid: string): Promise<Notification[]> => 
     try {
         const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(doc => {
-            const data = doc.data();
+            const data = doc.data() as any;
             let timeStr = '';
             if (data.timestamp && typeof data.timestamp.toDate === 'function') {
                 timeStr = data.timestamp.toDate().toLocaleString("en-US", { timeZone: "America/New_York" });
@@ -789,7 +789,7 @@ export const getRankings = async (currentUserUid: string): Promise<RankedUser[]>
         let rank = 1;
 
         querySnapshot.forEach((doc) => {
-            const data = doc.data();
+            const data = doc.data() as UserProfile;
             rankings.push({
                 uid: doc.id,
                 rank: rank++,

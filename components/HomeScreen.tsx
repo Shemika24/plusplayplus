@@ -16,7 +16,6 @@ import WithdrawalHistoryScreen from '../screens/WithdrawalHistoryScreen';
 import TaskHistoryScreen from '../screens/TaskHistoryScreen';
 import SpecialOffersScreen from '../screens/SpecialOffersScreen';
 import DailyComboModal from './modals/DailyComboModal';
-import InPageBanner from './InPageBanner';
 import { Screen, TaskHistory, Withdrawal, UserProfile } from '../types';
 import { addTaskHistoryItem, addWithdrawalRequest, updateUserProfile } from '../services/firestoreService';
 import { toggleTheme } from '../utils/themes';
@@ -271,16 +270,13 @@ const MainDashboardScreen: React.FC<{ userProfile: UserProfile; onNavigate: (scr
             </div>
 
             {/* Account Statistics */}
-            <div className="bg-[var(--bg-card)] rounded-2xl shadow-lg p-4 border border-[var(--border-color)] transition-colors duration-300">
+            <div className="bg-[var(--bg-card)] rounded-2xl shadow-lg p-4 mb-6 border border-[var(--border-color)] transition-colors duration-300">
                 <h2 className="text-lg font-bold text-[var(--dark)] mb-2 px-2">Account statistics</h2>
                 <ListItem icon={<i className="fa-solid fa-wallet text-green-500 text-xl"></i>} title={`$${totalEarnings.toFixed(2)} USD`} subtitle="Total earnings" />
                 <ListItem icon={<i className="fa-solid fa-clipboard-check text-green-500 text-xl"></i>} title={surveysCompleted.toLocaleString()} subtitle="Tasks Completed" />
                 <ListItem icon={<i className="fa-solid fa-award text-blue-500 text-xl"></i>} title={rewardsRedeemed.toLocaleString()} subtitle="Rewards Redeemed" />
                 <ListItem icon={<i className="fa-solid fa-gamepad text-yellow-500 text-xl"></i>} title="Games Activities" />
             </div>
-            
-            {/* IN-PAGE BANNER AD */}
-            <InPageBanner />
 
              {/* Bonus */}
              <div className="bg-[var(--bg-card)] rounded-2xl shadow-lg p-4 mb-6 border border-[var(--border-color)] transition-colors duration-300">
