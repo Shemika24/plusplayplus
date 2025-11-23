@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Transaction, WithdrawalHistoryScreenProps } from '../types';
+import { Transaction, TransactionHistoryScreenProps } from '../types';
 
 // Helper to format timestamp into a date group key (e.g., "Today", "Yesterday", "June 29, 2024")
 const formatDateGroup = (timestamp: number): string => {
@@ -22,7 +22,7 @@ const formatTime = (timestamp: number): string => {
     return new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 };
 
-const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ transactions, onBack }) => {
+const TransactionHistoryScreen: React.FC<TransactionHistoryScreenProps> = ({ transactions, onBack }) => {
     const [selectedDate, setSelectedDate] = useState(''); // YYYY-MM-DD format from input
 
     // 1. Filter transactions based on selectedDate
@@ -30,7 +30,9 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ trans
         if (!selectedDate) {
             return transactions;
         }
+        // Input format is YYYY-MM-DD. We need to match local user dates.
         const filterDate = new Date(selectedDate);
+        // Adjust for timezone to avoid off-by-one-day errors when converting to string.
         const filterDateString = new Date(filterDate.getTime() + filterDate.getTimezoneOffset() * 60000).toDateString();
         
         return transactions.filter(t => {
@@ -49,29 +51,33 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ trans
         return acc;
     }, {} as Record<string, Transaction[]>), [filteredTransactions]);
     
-    // 3. Sort group keys
+    // 3. Sort group keys to have Today, Yesterday, then descending dates
     const sortedGroupKeys = useMemo(() => Object.keys(groupedTransactions).sort((a, b) => {
         const dateA = a === 'Today' ? new Date().setHours(0,0,0,0) : a === 'Yesterday' ? new Date(new Date().setDate(new Date().getDate() - 1)).setHours(0,0,0,0) : new Date(a).getTime();
         const dateB = b === 'Today' ? new Date().setHours(0,0,0,0) : b === 'Yesterday' ? new Date(new Date().setDate(new Date().getDate() - 1)).setHours(0,0,0,0) : new Date(b).getTime();
         return dateB - dateA;
     }), [groupedTransactions]);
 
-    // 4. Calculate daily stats for withdrawals
+    // 4. Calculate daily stats for display
     const dailyStats = useMemo(() => {
         return Object.keys(groupedTransactions).reduce((acc, dateGroup) => {
             const dailyTransactions = groupedTransactions[dateGroup];
-            const withdrawalsCount = dailyTransactions.length;
-            const amountWithdrawn = dailyTransactions.reduce((sum, t) => {
-                if (t.isDebit && t.amount.includes('$')) {
-                    const amount = parseFloat(t.amount.replace(/[^0-9.]/g, ''));
-                    return sum + (isNaN(amount) ? 0 : amount);
+
+            const adsWatched = dailyTransactions.filter(
+                t => !t.isDebit && (t.type === 'task' || t.type === 'auto_ad') && t.description.toLowerCase().includes('ad')
+            ).length;
+
+            const pointsEarned = dailyTransactions.reduce((sum, t) => {
+                if (!t.isDebit && t.amount.toLowerCase().includes('points')) {
+                    const points = parseInt(t.amount.replace(/[^0-9]/g, ''), 10);
+                    return sum + (isNaN(points) ? 0 : points);
                 }
                 return sum;
             }, 0);
 
-            acc[dateGroup] = { withdrawalsCount, amountWithdrawn };
+            acc[dateGroup] = { adsWatched, pointsEarned };
             return acc;
-        }, {} as Record<string, { withdrawalsCount: number; amountWithdrawn: number }>);
+        }, {} as Record<string, { adsWatched: number; pointsEarned: number }>);
     }, [groupedTransactions]);
 
     return (
@@ -81,7 +87,7 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ trans
                     <button onClick={onBack} className="p-2 -ml-2 text-dark hover:text-primary" aria-label="Go back">
                         <i className="fa-solid fa-arrow-left text-2xl"></i>
                     </button>
-                    <h1 className="text-xl md:text-2xl font-bold text-dark">Withdrawal History</h1>
+                    <h1 className="text-xl md:text-2xl font-bold text-dark">Transaction History</h1>
                 </div>
                 <div className="relative flex items-center">
                     <label htmlFor="date-filter" className="text-dark p-2" aria-label="Filter by date">
@@ -104,9 +110,9 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ trans
 
             {sortedGroupKeys.length === 0 ? (
                 <div className="text-center py-8 bg-white rounded-xl shadow-sm">
-                    <p className="font-semibold text-gray">No withdrawals found.</p>
-                     <p className="text-sm text-gray mt-1">
-                        {selectedDate ? "No withdrawals were made on this date." : "Your withdrawal history will appear here."}
+                    <p className="font-semibold text-gray">No transactions found.</p>
+                    <p className="text-sm text-gray mt-1">
+                        {selectedDate ? "Try selecting a different date." : "Complete tasks to see your history!"}
                     </p>
                 </div>
             ) : (
@@ -116,13 +122,13 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ trans
                             <div className="flex justify-between items-center mb-3 px-2 sticky top-[68px] bg-light py-2 z-5 border-b border-gray-light">
                                 <h2 className="text-lg font-bold text-dark">{dateGroup}</h2>
                                 <div className="flex items-center gap-3 text-xs text-gray font-semibold">
-                                    <span className="flex items-center gap-1.5" title="Number of Withdrawals">
-                                        <i className="fa-solid fa-arrow-up-from-bracket text-primary text-base"></i>
-                                        {dailyStats[dateGroup]?.withdrawalsCount || 0}
+                                    <span className="flex items-center gap-1.5" title="Ads Watched">
+                                        <i className="fa-solid fa-rectangle-ad text-primary text-base"></i>
+                                        {dailyStats[dateGroup]?.adsWatched || 0}
                                     </span>
-                                    <span className="flex items-center gap-1.5" title="Total Amount Withdrawn">
-                                        <i className="fa-solid fa-dollar-sign text-success text-base"></i>
-                                        ${dailyStats[dateGroup]?.amountWithdrawn.toFixed(2) || '0.00'}
+                                    <span className="flex items-center gap-1.5" title="Points Earned">
+                                        <i className="fa-solid fa-coins text-secondary text-base"></i>
+                                        {dailyStats[dateGroup]?.pointsEarned.toLocaleString() || 0}
                                     </span>
                                 </div>
                             </div>
@@ -150,4 +156,4 @@ const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ trans
     );
 };
 
-export default WithdrawalHistoryScreen;
+export default TransactionHistoryScreen;

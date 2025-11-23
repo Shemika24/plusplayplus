@@ -1,455 +1,412 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Screen, Task, UserProfile, TaskHistory } from '../types';
-import { getDailyTaskState, completeTask as completeTaskInService } from '../services/firestoreService';
-import { useTaskAd } from '../hooks/useTaskAd';
-import { playSound, vibrate, SOUNDS } from '../utils/sound';
 
-interface TasksScreenProps {
-  onNavigate: (screen: Screen) => void;
-  onEarnPoints: (points: number, title: string, icon: string, iconColor: string, skipDbSave?: boolean) => void;
-  userProfile: UserProfile;
+import React, { useMemo, useCallback, useState, useEffect, useRef } from 'react';
+import { Task, TaskCategory, TasksScreenProps } from '../types';
+import DailyProgress from '../components/DailyProgress';
+
+interface MiniTaskCardProps {
+    task: Task;
+    onStartAd: (task: Task) => void;
+    taskType: 'pop' | 'inter' | 'visit' | 'website' | 'extra' | 'other';
+    disabled?: boolean;
 }
 
-interface ShuffledTask extends Task {
-    categoryIcon: string;
-    categoryIconBgColor: string;
-    categoryIconColor: string;
-}
+const MiniTaskCard: React.FC<MiniTaskCardProps> = React.memo(({ task, onStartAd, taskType, disabled = false }) => {
+    const isDisabled = disabled || task.status === 'completed';
 
-interface DailyTaskState {
-    tasks: ShuffledTask[];
-    isOnBreak: boolean;
-    breakEndTime: Date | null;
-    completedToday: number;
-    totalForDay: number;
-    availableInBatch: number;
-}
-
-// --- Sub-Components ---
-const SkeletonTaskItemCard: React.FC = () => (
-    <div className="bg-[var(--bg-card)] rounded-xl shadow-md flex items-center p-2.5 border border-[var(--border-color)] animate-pulse">
-        <div className="w-10 h-10 rounded-lg bg-[var(--bg-input)] mr-3 flex-shrink-0"></div>
-        <div className="flex-grow space-y-2">
-            <div className="h-4 bg-[var(--bg-input)] rounded w-3/4"></div>
-            <div className="h-3 bg-[var(--bg-input)] rounded w-1/2"></div>
-        </div>
-        <div className="h-8 w-24 rounded-full bg-[var(--bg-input)] ml-2 flex-shrink-0"></div>
-    </div>
-);
-
-const TaskItemCard: React.FC<{ task: ShuffledTask; onStart: (task: ShuffledTask) => void; isActive: boolean; disabled: boolean; }> = ({ task, onStart, isActive, disabled }) => (
-    <div className="bg-[var(--bg-card)] rounded-xl shadow-md flex items-center p-2.5 border border-[var(--border-color)] hover:border-[var(--primary)] transition-colors">
-        <div className={`w-10 h-10 rounded-lg bg-[var(--bg-input)] flex items-center justify-center mr-3 flex-shrink-0`}>
-            <i className={`${task.categoryIcon} ${task.categoryIconColor} text-xl`}></i>
-        </div>
-        <div className="flex-grow">
-            <h4 className="font-semibold text-sm text-[var(--dark)]">{task.title}</h4>
-            <div className="flex items-center text-xs text-[var(--primary)] font-semibold mt-1">
-                <i className="fa-regular fa-clock mr-1"></i>
-                <span>{task.duration}s</span>
-                <span className="mx-1.5 text-[var(--gray)]">|</span>
-                <span className="text-green-500 font-bold">+{task.points} points</span>
-            </div>
-        </div>
-        <button
-            onClick={() => onStart(task)}
-            disabled={disabled}
-            className={`font-bold h-8 w-24 rounded-full shadow-md text-sm ml-2 flex-shrink-0 transition-all duration-300 flex items-center justify-center
-                ${disabled
-                    ? 'bg-[var(--bg-input)] text-[var(--gray)] cursor-wait'
-                    : 'bg-gradient-to-r from-amber-600 to-yellow-400 text-white transform hover:scale-105'
-                }`}
-        >
-            {isActive ? (
-                <>
-                    <i className="fa-solid fa-spinner fa-spin mr-2"></i>
-                    <span>Wait</span>
-                </>
-            ) : (
-                'Start'
-            )}
-        </button>
-    </div>
-);
-
-const SuccessModal: React.FC<{ points: number }> = ({ points }) => (
-    <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-[110]">
-        <div className="bg-[var(--bg-card)] p-6 rounded-2xl shadow-lg max-w-xs w-11/12 relative text-center animate-fadeIn border border-[var(--border-color)]">
-            <div className="w-20 h-20 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4 border-4 border-green-200">
-                <i className="fa-solid fa-check-circle text-green-500 text-4xl"></i>
-            </div>
-            <h3 className="text-xl font-bold text-[var(--dark)] mb-2">Task Complete!</h3>
-            <p className="text-[var(--gray)]">
-                You earned <span className="font-bold text-[var(--success)]">{points}</span> points!
-            </p>
-        </div>
-        <style>{`
-            @keyframes fadeIn { from { opacity: 0; scale: 0.95; } to { opacity: 1; scale: 1; } }
-            .animate-fadeIn { animation: fadeIn 0.15s ease-out forwards; }
-        `}</style>
-    </div>
-);
-
-const BreakTimer: React.FC<{ endTime: Date; onBreakEnd: () => void }> = ({ endTime, onBreakEnd }) => {
-    const [timeLeft, setTimeLeft] = useState('');
-
-    useEffect(() => {
-        const calculateTimeLeft = () => {
-            const now = new Date();
-            const difference = endTime.getTime() - now.getTime();
-
-            if (difference <= 0) {
-                setTimeLeft('00:00:00');
-                onBreakEnd();
-                return;
-            }
-
-            const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
-            const minutes = Math.floor((difference / 1000 / 60) % 60);
-            const seconds = Math.floor((difference / 1000) % 60);
-            const pad = (num: number) => num.toString().padStart(2, '0');
-            setTimeLeft(`${pad(hours)}:${pad(minutes)}:${pad(seconds)}`);
-        };
-
-        calculateTimeLeft();
-        const timer = setInterval(calculateTimeLeft, 1000);
-        return () => clearInterval(timer);
-    }, [endTime, onBreakEnd]);
-
-    return (
-        <div className="text-center p-6 bg-[var(--bg-card)] rounded-xl shadow-lg border border-[var(--border-color)]">
-            <i className="fa-solid fa-mug-hot text-5xl text-sky-500 mb-4"></i>
-            <h3 className="text-2xl font-bold text-[var(--dark)]">Time for a break!</h3>
-            <p className="text-[var(--gray)] mt-2">
-                Great job! Your next set of tasks will be available in:
-            </p>
-            <p className="font-mono text-4xl font-bold text-[var(--dark)] my-4 bg-[var(--bg-input)] p-3 rounded-lg tracking-wider inline-block">
-                {timeLeft}
-            </p>
-        </div>
-    );
-};
-
-
-const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, userProfile }) => {
-    const [dailyState, setDailyState] = useState<DailyTaskState | null>(null);
-    const [isLoadingState, setIsLoadingState] = useState(true);
-    const [fetchError, setFetchError] = useState(false);
-    const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
-    const [successInfo, setSuccessInfo] = useState<{ points: number } | null>(null);
-    const [errorMessage, setErrorMessage] = useState<string | null>(null);
-    const [isAutoMode, setIsAutoMode] = useState(false);
-    
-    const fetchAndProcessTasks = useCallback(async () => {
-        setIsLoadingState(true);
-        setFetchError(false);
-        try {
-            const state = await getDailyTaskState(userProfile.uid);
-            setDailyState(state);
-            // Disable auto mode if entering break or empty
-            if (state.isOnBreak || state.tasks.length === 0) {
-                setIsAutoMode(false);
-            }
-        } catch (error) {
-            console.error("Failed to fetch task state:", error);
-            setFetchError(true);
-        } finally {
-            setIsLoadingState(false);
+    const handleClick = () => {
+        if (['pop', 'inter', 'visit', 'website', 'extra'].includes(taskType)) {
+            onStartAd(task);
         }
-    }, [userProfile.uid]);
-
-    useEffect(() => {
-        fetchAndProcessTasks();
-    }, [fetchAndProcessTasks]);
-
-    const handleTaskSuccess = useCallback(async ({ taskId, points }: { taskId: number; points: number }) => {
-        if (!dailyState) return;
-        
-        // --- CRITICAL UPDATE: Immediate Feedback & Removal ---
-        // 1. Play sound/vibrate immediately
-        playSound(SOUNDS.SUCCESS, 1.0);
-        vibrate(500); // Single strong vibration for completion
-
-        // 2. Optimistic UI Update: Remove task INSTANTLY from the list
-        // Capture task details for history before removing
-        const completedTask = dailyState.tasks.find(t => t.id === taskId);
-        
-        setDailyState(prev => {
-             if (!prev) return null;
-             const updatedTasks = prev.tasks.filter(t => t.id !== taskId);
-             return {
-                 ...prev,
-                 tasks: updatedTasks,
-                 completedToday: prev.completedToday + 1,
-             };
-        });
-
-        setActiveTaskId(null);
-
-        if (!completedTask) return;
-
-        try {
-            // 3. Async Database Operations
-            // Create history item object to pass to service
-            const historyItem: Omit<TaskHistory, 'id' | 'timestamp'> = {
-                reward: points,
-                title: completedTask.title,
-                icon: completedTask.categoryIcon,
-                iconColor: completedTask.categoryIconColor,
-                date: new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" }),
-            };
-
-            await completeTaskInService(userProfile.uid, taskId, points, historyItem);
-            
-            // 4. Update User Points Locally (skip DB save in onEarnPoints since we did it above)
-            onEarnPoints(points, completedTask.title, completedTask.categoryIcon, completedTask.categoryIconColor, true);
-            
-            // 5. Show Reward Modal
-            setSuccessInfo({ points });
-            setTimeout(() => setSuccessInfo(null), 1500); // Shortened for smoother auto flow
-            
-            // 6. Fetch latest state to ensure sync (silently update state to catch any server-side changes like breaks)
-            const latestState = await getDailyTaskState(userProfile.uid);
-            setDailyState(latestState);
-            
-            // Auto Mode check if break started
-            if (latestState.isOnBreak || latestState.tasks.length === 0) {
-                setIsAutoMode(false);
-            }
-
-        } catch (error: any) {
-            console.error("Sync error:", error);
-            setErrorMessage("Network error. Points were not saved. Please try again.");
-            setIsAutoMode(false); // Stop auto on error
-            setTimeout(() => setErrorMessage(null), 4000);
-        }
-    }, [dailyState, userProfile.uid, onEarnPoints]);
-
-    const { showTaskAd, cancelAd, isAdActive, timeLeft, isLoading: isAdLoading } = useTaskAd({
-        onReward: handleTaskSuccess,
-        onError: (err) => {
-            console.error("Ad failed:", err instanceof Error ? err.message : String(err));
-            setErrorMessage(err.message || "Task failed. Please try again.");
-            setTimeout(() => setErrorMessage(null), 3000);
-            setActiveTaskId(null);
-            setIsAutoMode(false); // Stop auto loop on error
-        }
-    });
-
-    const handleStartTask = useCallback(async (task: ShuffledTask) => {
-        if (activeTaskId !== null || isAdActive || isAdLoading) return;
-        
-        setActiveTaskId(task.id);
-        setErrorMessage(null);
-
-        const isInterstitial = task.categoryIcon.includes('fa-rectangle-ad');
-        const type = isInterstitial ? 'Interstitial' : 'Pop';
-        
-        // Enforce strictly 15s for Interstitial and 20s for Pop as requested
-        const duration = isInterstitial ? 15 : 20;
-        
-        showTaskAd(task.id, task.points, duration, type);
-    }, [activeTaskId, isAdActive, isAdLoading, showTaskAd]);
-
-
-    // --- AUTO MODE LOGIC ---
-    useEffect(() => {
-        // If Auto Mode is ON, no task is active, no error, and we have tasks...
-        if (isAutoMode && activeTaskId === null && !isAdActive && !errorMessage && dailyState && dailyState.tasks.length > 0) {
-            
-            // Wait a moment for the success modal to be visible, then start next
-            // Reduced delay to 500ms as requested (effectively removing the 5s wait)
-            const autoTimer = setTimeout(() => {
-                if (dailyState.tasks.length > 0) {
-                    const nextTask = dailyState.tasks[0]; // Always take the top task
-                    handleStartTask(nextTask);
-                } else {
-                    setIsAutoMode(false); // No more tasks
-                }
-            }, 500); 
-
-            return () => clearTimeout(autoTimer);
-        }
-        
-        // Auto-disable if break starts
-        if (dailyState?.isOnBreak) {
-            setIsAutoMode(false);
-        }
-
-    }, [isAutoMode, activeTaskId, isAdActive, errorMessage, dailyState, handleStartTask]);
-
-
-    
-    const progressPercentage = dailyState && dailyState.totalForDay > 0 
-        ? (dailyState.completedToday / dailyState.totalForDay) * 100 : 0;
-
-    const renderContent = () => {
-        if (isLoadingState) {
-            return (
-                <div className="space-y-3">
-                    {Array.from({ length: 5 }).map((_, i) => <SkeletonTaskItemCard key={i} />)}
-                </div>
-            );
-        }
-
-        if (fetchError) {
-             return (
-                <div className="text-center p-8 bg-[var(--bg-card)] rounded-xl shadow-lg border border-red-200">
-                    <div className="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-4">
-                        <i className="fa-solid fa-wifi text-red-500 text-2xl"></i>
-                    </div>
-                    <h3 className="text-xl font-bold text-[var(--dark)]">Connection Issue</h3>
-                    <p className="text-[var(--gray)] mt-2 mb-4">
-                        We couldn't load your tasks. Please check your internet connection.
-                    </p>
-                    <button 
-                        onClick={fetchAndProcessTasks}
-                        className="px-8 py-3 bg-[var(--primary)] text-white font-bold rounded-xl shadow-md hover:bg-[var(--primary-dark)] transition-colors"
-                    >
-                        Try Again
-                    </button>
-                </div>
-            );
-        }
-
-        if (dailyState?.isOnBreak && dailyState.breakEndTime) {
-            return <BreakTimer endTime={dailyState.breakEndTime} onBreakEnd={fetchAndProcessTasks} />;
-        }
-
-        if (dailyState && dailyState.tasks.length > 0) {
-             return (
-                 <div className="space-y-3">
-                    {dailyState.tasks.map(task => (
-                        <TaskItemCard
-                            key={task.id}
-                            task={task}
-                            onStart={handleStartTask}
-                            isActive={activeTaskId === task.id}
-                            disabled={activeTaskId !== null && activeTaskId !== task.id}
-                        />
-                    ))}
-                </div>
-             );
-        }
-        
-        return (
-            <div className="text-center p-6 bg-[var(--bg-card)] rounded-xl shadow-lg border border-[var(--border-color)]">
-                <i className="fa-solid fa-party-horn text-5xl text-green-500 mb-4"></i>
-                <h3 className="text-2xl font-bold text-[var(--dark)]">All Done!</h3>
-                <p className="text-[var(--gray)] mt-2">
-                    You've completed all available tasks for today. Come back tomorrow for more!
-                </p>
-            </div>
-        );
     };
 
     return (
-        <div className="p-4 md:p-6 pb-24 text-[var(--dark)] min-h-full relative">
-            {successInfo && <SuccessModal points={successInfo.points} />}
-            
-            {errorMessage && (
-                <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-[120] w-11/12 max-w-md bg-red-500 text-white px-4 py-3 rounded-lg shadow-lg animate-slideInUp flex items-center">
-                    <i className="fa-solid fa-triangle-exclamation mr-3 text-xl"></i>
-                    <span className="text-sm font-medium">{errorMessage}</span>
-                </div>
-            )}
-
-            {(isAdActive || isAdLoading) && (
-                <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 animate-fadeIn select-none">
-                    <div className="w-20 h-20 mb-6 relative flex items-center justify-center">
-                        <svg className="animate-spin h-full w-full text-white/30" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        {isAdActive && <span className="absolute font-bold text-2xl text-white">{timeLeft}</span>}
-                    </div>
-                    
-                    <p className="text-white/90 font-medium text-lg animate-pulse">
-                        {isAdLoading ? "Opening..." : "Verifying..."}
-                    </p>
-                    
-                    {isAutoMode && (
-                        <div className="absolute top-6 right-6 bg-white/20 px-3 py-1 rounded-full flex items-center animate-pulse">
-                            <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
-                            <span className="text-white text-xs font-bold">AUTO MODE</span>
-                        </div>
-                    )}
-
-                    <button 
-                        onClick={() => { cancelAd(false); setIsAutoMode(false); }}
-                        className="mt-12 px-6 py-2 rounded-full border border-white/20 text-white/60 hover:bg-white/10 hover:text-white transition-all text-sm"
-                    >
-                        Cancel
-                    </button>
-                </div>
-            )}
-
-            <style>{`
-                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-                .animate-fadeIn { animation: fadeIn 0.3s ease forwards; }
-                @keyframes slideInUp { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
-                .animate-slideInUp { animation: slideInUp 0.3s ease-out forwards; }
-            `}</style>
-            
-            <div className="bg-[var(--bg-card)] rounded-xl shadow-lg p-4 mb-6 border-l-4 border-[var(--primary)] transition-colors">
-                <div className="flex justify-between items-center mb-4">
-                     <h3 className="font-bold text-lg text-[var(--dark)]">Tasks</h3>
-                     
-                     <div className="flex items-center gap-3">
-                         {/* Auto Switch */}
-                        <div className="flex items-center gap-2 bg-[var(--bg-input)] px-3 py-1.5 rounded-full border border-[var(--border-color)]">
-                             <span className={`text-xs font-bold transition-colors ${isAutoMode ? 'text-green-500' : 'text-[var(--gray)]'}`}>
-                                 AUTO
-                             </span>
-                             <button
-                                onClick={() => {
-                                    // If enabling auto mode, and we aren't already doing a task, start immediately
-                                    if (!isAutoMode && activeTaskId === null && dailyState && dailyState.tasks.length > 0) {
-                                        setIsAutoMode(true);
-                                    } else {
-                                        setIsAutoMode(!isAutoMode);
-                                    }
-                                }}
-                                disabled={!dailyState || dailyState.tasks.length === 0 || dailyState.isOnBreak || fetchError}
-                                className={`w-10 h-5 rounded-full relative transition-all duration-300 ${isAutoMode ? 'bg-green-500' : 'bg-gray-300'} disabled:opacity-50`}
-                            >
-                                <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all shadow-sm ${isAutoMode ? 'left-6' : 'left-1'}`}></div>
-                            </button>
-                        </div>
-
-                        <button onClick={() => onNavigate('TaskHistory')} className="text-[var(--gray)] hover:text-[var(--dark)] transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-input)]">
-                            <i className="fa-solid fa-clock-rotate-left text-lg"></i>
-                        </button>
-                     </div>
-                </div>
-                
-                <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center">
-                        <div className="flex-shrink-0 mr-3">
-                            <i className="fa-solid fa-list-check text-[var(--primary)] text-3xl"></i>
-                        </div>
-                        <div>
-                            <p className="text-xs text-[var(--gray)]">Completed</p>
-                            <p className="font-bold text-2xl text-[var(--dark)]">{dailyState?.completedToday || 0}</p>
-                        </div>
-                    </div>
-                    
-                    <div className="text-right">
-                         <div className="text-sm text-[var(--gray)] mb-1">
-                            Daily: <span className="font-bold text-[var(--dark)]">{dailyState?.totalForDay || 0}</span>
-                         </div>
-                         <div className="text-sm text-[var(--gray)]">
-                            Available: <span className="font-bold text-[var(--primary)]">{dailyState?.availableInBatch || 0}</span>
-                         </div>
-                    </div>
-                </div>
-                <div className="w-full bg-[var(--bg-input)] rounded-full h-2.5">
-                    <div className="bg-[var(--primary)] h-2.5 rounded-full transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div>
+        <div className={`flex items-center gap-2 bg-white rounded-xl p-2 shadow-sm transition-all duration-200 ${isDisabled ? 'opacity-60 bg-gray-light' : 'hover:shadow-md hover:-translate-y-0.5'}`}>
+            <div className="w-12 h-12 flex items-center justify-center bg-secondary/10 rounded-lg flex-shrink-0">
+                <i className="fa-solid fa-coins text-3xl text-secondary"></i>
+            </div>
+            <div className="flex-grow min-w-0">
+                <h4 className="font-bold text-sm text-dark truncate">{task.name}</h4>
+                <p className="text-xs text-gray truncate">{task.description}</p>
+                <div className="flex items-center gap-2 text-xs font-medium mt-1">
+                    <span className="text-secondary">{task.time}s</span>
+                    <span className="text-success">+{task.reward} points</span>
                 </div>
             </div>
+            <button
+                className={`flex items-center justify-center flex-shrink-0 w-16 h-8 rounded-lg font-bold text-sm transition-colors ${task.status === 'completed' ? 'bg-success text-white' : 'bg-primary text-white hover:bg-primary-dark'} disabled:bg-gray disabled:cursor-not-allowed`}
+                disabled={isDisabled}
+                onClick={handleClick}
+                aria-label={`Start ${task.name}`}
+            >
+                {task.status === 'completed' ? <i className="fa-solid fa-circle-check mx-auto text-xl"/> : 'Start'}
+            </button>
+        </div>
+    );
+});
 
-            {renderContent()}
+interface StatCardProps {
+    icon: React.ReactNode;
+    title: string;
+    stats: { label: string; value: string | number }[];
+    color: string;
+    actionButton?: React.ReactNode;
+}
+
+const StatCard: React.FC<StatCardProps> = React.memo(({ icon, title, stats, color, actionButton }) => (
+    <div className={`bg-white p-4 rounded-2xl shadow-md flex items-start gap-4 border-l-4 ${color} relative`}>
+        <div className="flex-shrink-0 pt-1">{icon}</div>
+        <div className="flex-grow">
+            <h3 className="font-bold text-dark">{title}</h3>
+            <div className="flex gap-4 text-sm mt-1">
+                {stats.map(stat => (
+                    <div key={stat.label}>
+                        <span className="text-gray">{stat.label}: </span>
+                        <span className="font-bold text-dark">{stat.value}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+        {actionButton && (
+            <div className="absolute top-2 right-2">
+                {actionButton}
+            </div>
+        )}
+    </div>
+));
+
+const CountdownTimer: React.FC<{ endTime: number; prefix: string }> = React.memo(({ endTime, prefix }) => {
+    const calculateTimeLeft = useCallback(() => {
+        const timeLeft = endTime - Date.now();
+        return Math.max(0, timeLeft);
+    }, [endTime]);
+
+    const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setTimeLeft(calculateTimeLeft());
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [calculateTimeLeft]);
+    
+    const hours = Math.floor(timeLeft / (1000 * 60 * 60)).toString().padStart(2, '0');
+    const minutes = Math.floor((timeLeft / 1000 / 60) % 60).toString().padStart(2, '0');
+    const seconds = Math.floor((timeLeft / 1000) % 60).toString().padStart(2, '0');
+
+    if (hours !== '00') {
+      return <span className="text-sm font-medium text-primary">{prefix} {hours}:{minutes}:{seconds}</span>;
+    }
+    return <span className="text-sm font-medium text-primary">{prefix} {minutes}:{seconds}</span>;
+});
+
+const TasksScreen: React.FC<TasksScreenProps> = ({ addTransaction, categories, setCategories, interstitialState, popAdState, visitAdState, websiteAdState, extraAdState, onStartAd, onOpenHistory, referralCount }) => {
+    const TOTAL_INTERSTITIAL_ADS = 1080;
+    const INTERSTITIAL_BATCH_SIZE = 180;
+    const POP_ADS_BATCH_SIZE = 150;
+    const TOTAL_POP_ADS_DAILY = 1200;
+    const VISIT_ADS_BATCH_SIZE = 360;
+    const TOTAL_VISIT_ADS_DAILY = 720;
+    const WEBSITE_ADS_BATCH_SIZE = 180;
+    const TOTAL_WEBSITE_ADS_DAILY = 620;
+    const EXTRA_ADS_BATCH_SIZE = 60;
+    const TOTAL_EXTRA_ADS_DAILY = 180;
+
+    const [isAutoPopAdsRunning, setIsAutoPopAdsRunning] = useState(false);
+    const autoPopAdIntervalRef = useRef<number | null>(null);
+
+    const now = Date.now();
+    const isInterCooldown = now < interstitialState.nextBatchAvailableAt;
+    const areInterstitialAdsExhausted = interstitialState.completedTodayCount >= TOTAL_INTERSTITIAL_ADS;
+    
+    const arePopAdsExhausted = popAdState.completedTodayCount >= TOTAL_POP_ADS_DAILY;
+    const isPopAdCooldown = popAdState.cooldownUntil > now;
+    
+    const areVisitAdsExhausted = visitAdState.completedTodayCount >= TOTAL_VISIT_ADS_DAILY;
+    const isVisitAdCooldown = visitAdState.cooldownUntil > now;
+    
+    const areWebsiteAdsExhausted = websiteAdState.completedTodayCount >= TOTAL_WEBSITE_ADS_DAILY;
+    const isWebsiteAdCooldown = websiteAdState.cooldownUntil > now;
+
+    const areExtraAdsExhausted = extraAdState.completedTodayCount >= TOTAL_EXTRA_ADS_DAILY;
+    const isExtraAdCooldown = extraAdState.cooldownUntil > now;
+
+    useEffect(() => {
+        if (isAutoPopAdsRunning) {
+            const runNextAd = () => {
+                const popCategory = categories.find(c => c.id === 'pop');
+                const currentPopAdState = popAdState; // Use the state from the render it was created in.
+                const now = Date.now();
+                const isCooldown = currentPopAdState.cooldownUntil > now;
+                const areExhausted = currentPopAdState.completedTodayCount >= TOTAL_POP_ADS_DAILY;
+
+                if (!popCategory || areExhausted || isCooldown) {
+                    setIsAutoPopAdsRunning(false);
+                    return;
+                }
+
+                const nextTask = popCategory.tasks.find(t => t.status === 'pending');
+                if (nextTask) {
+                    onStartAd(nextTask);
+                } else {
+                    setIsAutoPopAdsRunning(false);
+                }
+            };
+
+            autoPopAdIntervalRef.current = window.setInterval(runNextAd, 16000);
+        }
+
+        // Cleanup function for when isAutoPopAdsRunning becomes false OR dependencies change
+        return () => {
+            if (autoPopAdIntervalRef.current) {
+                clearInterval(autoPopAdIntervalRef.current);
+                autoPopAdIntervalRef.current = null;
+            }
+        };
+    }, [isAutoPopAdsRunning, categories, onStartAd, popAdState]);
+
+    const taskScreenCategories = useMemo(() => categories.filter(c => c.id !== 'auto' && c.id !== 'ai-generated'), [categories]);
+
+    const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const [selectedCategories, setSelectedCategories] = useState<string[]>(() => taskScreenCategories.map(c => c.id));
+    
+    const handleFilterChange = (categoryId: string) => {
+        setSelectedCategories(prev =>
+            prev.includes(categoryId)
+                ? prev.filter(id => id !== categoryId)
+                : [...prev, categoryId]
+        );
+    };
+    
+    const areAllSelected = useMemo(() => selectedCategories.length === taskScreenCategories.length, [selectedCategories, taskScreenCategories]);
+
+    const toggleSelectAll = () => {
+        if (areAllSelected) {
+            setSelectedCategories([]);
+        } else {
+            setSelectedCategories(taskScreenCategories.map(c => c.id));
+        }
+    };
+
+    const filteredCategories = useMemo(() =>
+        taskScreenCategories.filter(c => selectedCategories.includes(c.id)),
+        [taskScreenCategories, selectedCategories]
+    );
+
+    const { completed, remaining } = useMemo(() => {
+        const TOTAL_ADS_PER_DAY = 1080 + 1200 + 720 + 620 + 180;
+        const totalCompleted = interstitialState.completedTodayCount + popAdState.completedTodayCount + visitAdState.completedTodayCount + websiteAdState.completedTodayCount + extraAdState.completedTodayCount;
+        const remainingCount = Math.max(0, TOTAL_ADS_PER_DAY - totalCompleted);
+        return { completed: totalCompleted, remaining: remainingCount };
+    }, [interstitialState, popAdState, visitAdState, websiteAdState, extraAdState]);
+
+    const progressData = useMemo(() => {
+        const data = [
+            { id: 'inter', title: 'Interstitial', completed: interstitialState.completedTodayCount, total: TOTAL_INTERSTITIAL_ADS, color: 'bg-primary' },
+            { id: 'pop', title: 'Pop', completed: popAdState.completedTodayCount, total: TOTAL_POP_ADS_DAILY, color: 'bg-accent' },
+            { id: 'visit', title: 'Visit', completed: visitAdState.completedTodayCount, total: TOTAL_VISIT_ADS_DAILY, color: 'bg-secondary' },
+            { id: 'website', title: 'Website', completed: websiteAdState.completedTodayCount, total: TOTAL_WEBSITE_ADS_DAILY, color: 'bg-success' },
+            { id: 'extra', title: 'Extra', completed: extraAdState.completedTodayCount, total: TOTAL_EXTRA_ADS_DAILY, color: 'bg-purple-500' }
+        ];
+    
+        return data.map(d => {
+            const category = categories.find(c => c.id === d.id);
+            return category ? { ...d, title: category.title.replace(' Ads', ''), color: category.color } : d;
+        });
+    }, [categories, interstitialState, popAdState, visitAdState, websiteAdState, extraAdState]);
+
+    const renderCategoryStatus = (category: TaskCategory) => {
+        if (category.id === 'inter') {
+            if (areInterstitialAdsExhausted) return <span className="text-sm font-medium text-success">Daily limit reached!</span>;
+            if (isInterCooldown) return <CountdownTimer endTime={interstitialState.nextBatchAvailableAt} prefix="Next batch in:" />;
+            return <span className="text-sm font-medium text-gray">Batch: {interstitialState.currentBatchCompletedCount}/{INTERSTITIAL_BATCH_SIZE}</span>;
+        }
+        if (category.id === 'pop') {
+            if (arePopAdsExhausted) return <span className="text-sm font-medium text-success">Daily limit reached!</span>;
+            if (isPopAdCooldown) return <CountdownTimer endTime={popAdState.cooldownUntil} prefix="Next batch in:" />;
+            return (
+                <span className="text-sm font-medium text-gray">
+                    Batch: {popAdState.currentBatchCompletedCount}/{POP_ADS_BATCH_SIZE}
+                </span>
+            );
+        }
+        if (category.id === 'visit') {
+            if (areVisitAdsExhausted) return <span className="text-sm font-medium text-success">Daily limit reached!</span>;
+            if (isVisitAdCooldown) return <CountdownTimer endTime={visitAdState.cooldownUntil} prefix="Next batch in:" />;
+            return (
+                 <span className="text-sm font-medium text-gray">
+                    Batch: {visitAdState.completedTodayCount % VISIT_ADS_BATCH_SIZE}/{VISIT_ADS_BATCH_SIZE}
+                </span>
+            )
+        }
+        if (category.id === 'website') {
+            if (areWebsiteAdsExhausted) return <span className="text-sm font-medium text-success">Daily limit reached!</span>;
+            if (isWebsiteAdCooldown) return <CountdownTimer endTime={websiteAdState.cooldownUntil} prefix="Next batch in:" />;
+            return (
+                 <span className="text-sm font-medium text-gray">
+                    Batch: {websiteAdState.currentBatchCompletedCount}/{WEBSITE_ADS_BATCH_SIZE}
+                </span>
+            )
+        }
+        if (category.id === 'extra') {
+            if (areExtraAdsExhausted) return <span className="text-sm font-medium text-success">Daily limit reached!</span>;
+            if (isExtraAdCooldown) return <CountdownTimer endTime={extraAdState.cooldownUntil} prefix="Next batch in:" />;
+            return (
+                 <span className="text-sm font-medium text-gray">
+                    Batch: {extraAdState.currentBatchCompletedCount}/{EXTRA_ADS_BATCH_SIZE}
+                </span>
+            )
+        }
+        return null;
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-4">
+                <StatCard 
+                    icon={<i className="fa-solid fa-list-check text-4xl text-primary"></i>}
+                    title="Ads & Tasks"
+                    stats={[
+                        { label: 'Completed', value: completed },
+                        { label: 'Remaining', value: remaining }
+                    ]}
+                    color="border-primary"
+                    actionButton={
+                        <button onClick={onOpenHistory} className="p-2 rounded-full text-gray hover:bg-gray-light transition-colors" aria-label="View history">
+                            <i className="fa-solid fa-clock-rotate-left text-xl"></i>
+                        </button>
+                    }
+                />
+            </div>
+            
+            <DailyProgress progressData={progressData} />
+
+            <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-dark">Task Categories</h2>
+                <button onClick={() => setIsFilterOpen(prev => !prev)} className="flex items-center gap-2 text-primary font-semibold p-2 rounded-lg hover:bg-primary/10 transition-colors">
+                    <i className="fa-solid fa-filter text-xl"></i>
+                    <span>Filter</span>
+                </button>
+            </div>
+
+            {isFilterOpen && (
+                <div className="bg-white p-4 rounded-xl shadow-md animate-fadeIn space-y-3 border border-gray-medium">
+                    <h3 className="font-bold text-dark">Filter by Ad Type</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                        {taskScreenCategories.map(category => (
+                            <label key={category.id} className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-gray-light transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={selectedCategories.includes(category.id)}
+                                    onChange={() => handleFilterChange(category.id)}
+                                    className="h-5 w-5 rounded text-primary focus:ring-primary border-gray-medium"
+                                />
+                                <span className="font-medium text-dark select-none">{category.title}</span>
+                            </label>
+                        ))}
+                    </div>
+                    <div className="pt-3 border-t border-gray-medium">
+                         <button 
+                            onClick={toggleSelectAll} 
+                            className="w-full text-center text-sm font-semibold text-primary hover:underline">
+                            {areAllSelected ? 'Deselect All' : 'Select All'}
+                         </button>
+                    </div>
+                </div>
+            )}
+
+            {filteredCategories.length > 0 ? (
+                filteredCategories.map(category => {
+                    let tasksToRender: Task[] = [];
+                    let isDisabled = false;
+
+                    switch (category.id) {
+                        case 'inter':
+                            isDisabled = areInterstitialAdsExhausted || isInterCooldown;
+                            const pendingInterstitialTasks = category.tasks.filter(t => t.status === 'pending');
+                            tasksToRender = pendingInterstitialTasks.slice(0, INTERSTITIAL_BATCH_SIZE);
+                            break;
+                        case 'pop':
+                            isDisabled = arePopAdsExhausted || isPopAdCooldown;
+                            const pendingPopTasks = category.tasks.filter(t => t.status === 'pending');
+                            tasksToRender = pendingPopTasks.slice(0, POP_ADS_BATCH_SIZE);
+                            break;
+                        case 'visit':
+                             isDisabled = areVisitAdsExhausted || isVisitAdCooldown;
+                            if (category.tasks.length > 0) {
+                                const startIndex = visitAdState.completedTodayCount < VISIT_ADS_BATCH_SIZE ? 0 : VISIT_ADS_BATCH_SIZE;
+                                const endIndex = startIndex + VISIT_ADS_BATCH_SIZE;
+                                tasksToRender = category.tasks.slice(startIndex, endIndex);
+                            }
+                            break;
+                        case 'website':
+                            isDisabled = areWebsiteAdsExhausted || isWebsiteAdCooldown;
+                            if (category.tasks.length > 0) {
+                                const startIndex = Math.floor(websiteAdState.completedTodayCount / WEBSITE_ADS_BATCH_SIZE) * WEBSITE_ADS_BATCH_SIZE;
+                                const endIndex = startIndex + WEBSITE_ADS_BATCH_SIZE;
+                                tasksToRender = category.tasks.slice(startIndex, endIndex);
+                            }
+                            break;
+                        case 'extra':
+                            isDisabled = areExtraAdsExhausted || isExtraAdCooldown;
+                            if (category.tasks.length > 0) {
+                                const startIndex = Math.floor(extraAdState.completedTodayCount / EXTRA_ADS_BATCH_SIZE) * EXTRA_ADS_BATCH_SIZE;
+                                const endIndex = startIndex + EXTRA_ADS_BATCH_SIZE;
+                                tasksToRender = category.tasks.slice(startIndex, endIndex);
+                            }
+                            break;
+                        default:
+                            tasksToRender = category.tasks;
+                            break;
+                    }
+
+                    return (
+                        <div key={category.id} className="space-y-4 animate-fadeIn">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className='flex items-center gap-3'>
+                                    <span className={`w-2 h-6 rounded-full ${category.color}`}></span>
+                                    <h3 className="text-lg font-bold text-dark">{category.title}</h3>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    {category.id === 'pop' && (
+                                        <div className="flex items-center gap-2">
+                                            <span className={`font-semibold text-sm ${isAutoPopAdsRunning ? 'text-primary' : 'text-dark'}`}>Auto</span>
+                                            <label htmlFor="auto-pop-toggle" className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    id="auto-pop-toggle"
+                                                    className="sr-only peer"
+                                                    checked={isAutoPopAdsRunning}
+                                                    onChange={() => setIsAutoPopAdsRunning(prev => !prev)}
+                                                    disabled={arePopAdsExhausted || isPopAdCooldown}
+                                                />
+                                                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-primary/50 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                            </label>
+                                        </div>
+                                    )}
+                                   {renderCategoryStatus(category)}
+                                </div>
+                            </div>
+                            <div className="space-y-3">
+                                {tasksToRender.map(task => (
+                                    <MiniTaskCard 
+                                        key={task.id} 
+                                        task={task} 
+                                        onStartAd={onStartAd}
+                                        taskType={category.id as any}
+                                        disabled={isDisabled}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })
+            ) : (
+                <div className="text-center py-8 bg-white rounded-xl shadow-sm">
+                    <p className="font-semibold text-gray">No categories selected.</p>
+                    <p className="text-sm text-gray mt-1">Use the filter to show ad types.</p>
+                </div>
+            )}
         </div>
     );
 };
