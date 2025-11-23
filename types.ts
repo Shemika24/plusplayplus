@@ -1,4 +1,40 @@
 
+// Add Telegram Types
+declare global {
+    interface Window {
+        Telegram: {
+            WebApp: {
+                ready: () => void;
+                expand: () => void;
+                close: () => void;
+                openTelegramLink: (url: string) => void;
+                initData: string; // Encoded data for backend validation
+                initDataUnsafe: {
+                    user?: {
+                        id: number;
+                        first_name: string;
+                        last_name?: string;
+                        username?: string;
+                        language_code?: string;
+                        photo_url?: string;
+                        is_premium?: boolean;
+                    };
+                    auth_date?: string;
+                    hash?: string; // Hash for validation
+                    start_param?: string;
+                };
+                colorScheme: 'light' | 'dark';
+                themeParams: any;
+                isExpanded: boolean;
+                viewportHeight: number;
+                viewportStableHeight: number;
+                platform: string;
+                version: string;
+            }
+        }
+    }
+}
+
 export interface SpinWheelState {
     spinsToday: number;
     winsToday: number;

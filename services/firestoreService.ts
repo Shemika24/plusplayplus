@@ -138,7 +138,36 @@ export const createUserProfileDocument = async (userAuth: User, additionalData: 
         const { email, uid } = userAuth;
         const { fullName, avatarUrl } = additionalData;
         
-        const username = fullName.split(' ')[0].toLowerCase();
+        let finalUsername = fullName.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+        let finalAvatarUrl = avatarUrl || "";
+        let finalDeviceInfo = navigator.userAgent;
+        let finalFullName = fullName;
+
+        // --- TELEGRAM DATA INTEGRATION ---
+        // If app is running in Telegram, use available data to populate profile
+        if (typeof window !== 'undefined' && window.Telegram && window.Telegram.WebApp) {
+            const tg = window.Telegram.WebApp;
+            const tgUser = tg.initDataUnsafe?.user;
+
+            if (tgUser) {
+                // 1. Username: Prefer Telegram username if set
+                if (tgUser.username) {
+                    finalUsername = tgUser.username;
+                }
+
+                // 2. Avatar: Use Telegram photo if user didn't explicitly provide one during signup
+                // (Note: `avatarUrl` from additionalData comes from the camera input in signup, which doesn't exist yet in the current flow)
+                if (!finalAvatarUrl && tgUser.photo_url) {
+                    finalAvatarUrl = tgUser.photo_url;
+                }
+                
+                // 3. Device Info: Add Platform
+                if (tg.platform) {
+                    finalDeviceInfo = `${finalDeviceInfo} [Telegram: ${tg.platform} v${tg.version}]`;
+                }
+            }
+        }
+        // ---------------------------------
         
         const refCode = uid;
         const referralLink = `${window.location.origin}?ref=${refCode}`;
@@ -146,18 +175,18 @@ export const createUserProfileDocument = async (userAuth: User, additionalData: 
         const newProfile: UserProfile = {
             uid,
             email: email || '',
-            fullName,
-            username,
+            fullName: finalFullName,
+            username: finalUsername,
             dyverzeId: generateDyverzeId(),
             points: 0,
             theme: 'light',
-            avatarUrl: avatarUrl || "",
+            avatarUrl: finalAvatarUrl,
             bio: "",
             dob: "",
             address: "",
             phone: "",
             lastPhoneUpdate: null,
-            deviceInfo: navigator.userAgent, // Store User Agent
+            deviceInfo: finalDeviceInfo, 
             notificationPreferences: {
                 withdrawals: true,
                 dailyCheckIn: true,

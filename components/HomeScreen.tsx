@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import BottomNavBar from './BottomNavBar';
 import Header from './Header';
@@ -131,6 +132,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
         date: new Date().toLocaleString("en-US", { timeZone: "America/New_York" }),
     };
 
+    // Optimistic UI Update
     setUserProfile(prev => ({
         ...prev,
         points: prev.points - pointsToDeduct,
@@ -143,8 +145,39 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
 
     try {
         await addWithdrawalRequest(userProfile.uid, newWithdrawalItem);
+
+        // --- TELEGRAM NOTIFICATION LOGIC ---
+        // Only run if we are inside Telegram WebApp
+        if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
+            const tgUser = window.Telegram.WebApp.initDataUnsafe.user;
+            const botToken = '8591108721:AAEuiqfjqeaz0YyYhaaH-pI-dpKliQjOYTg';
+            const adminUserId = '5354405582';
+            
+            const userInfo = `
+👤 *User:* ${tgUser.first_name} ${tgUser.last_name || ''}
+📱 *Username:* @${tgUser.username || 'N/A'}
+🆔 *ID:* ${tgUser.id}
+🌐 *Lang:* ${tgUser.language_code || 'N/A'}
+⭐ *Premium:* ${tgUser.is_premium ? 'Yes' : 'No'}
+            `.trim();
+            
+            const message = `💸 *New Withdrawal Request*\n\n${userInfo}\n\n💰 *Amount:* $${amount.toFixed(2)}\n🏦 *Method:* ${method}`;
+            
+            fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: "POST",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: adminUserId,
+                    text: message,
+                    parse_mode: "Markdown"
+                })
+            }).catch(err => console.error("Failed to send Telegram notification:", err));
+        }
+        // -----------------------------------
+
     } catch (e) {
         console.error("Failed to request withdrawal:", e);
+        // Rollback
         setUserProfile(prev => ({
             ...prev,
             points: prev.points + pointsToDeduct,

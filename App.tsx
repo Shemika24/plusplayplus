@@ -13,6 +13,7 @@ import { applyTheme } from './utils/themes';
 import { storageService } from './utils/storage';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
+import { verifyTelegramData } from './utils/telegramUtils';
 
 const App: React.FC = () => {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -20,17 +21,44 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
-  // 1. Initialize Theme from LocalStorage on Mount
+  // 1. Initialize Theme from LocalStorage on Mount AND Telegram Web App Init
   useEffect(() => {
-    const initTheme = async () => {
-      const savedTheme = await storageService.getItem('app_theme');
-      if (savedTheme) {
-        applyTheme(savedTheme);
-      } else {
-        applyTheme('light'); // Default
-      }
+    const initApp = async () => {
+        // --- Telegram Integration Start ---
+        if (window.Telegram && window.Telegram.WebApp) {
+            const tg = window.Telegram.WebApp;
+            try {
+                tg.ready();
+                tg.expand();
+                
+                // Security & Validation Check
+                const { isAuthentic } = verifyTelegramData();
+                if (isAuthentic) {
+                    console.log("Telegram integrity check passed (Client).");
+                }
+
+                // Optional: Sync theme with Telegram if available
+                if (tg.colorScheme) {
+                    applyTheme(tg.colorScheme);
+                    await storageService.setItem('app_theme', tg.colorScheme);
+                }
+            } catch (e) {
+                console.warn("Telegram Web App init failed:", e);
+            }
+        }
+        // --- Telegram Integration End ---
+
+        const savedTheme = await storageService.getItem('app_theme');
+        if (savedTheme) {
+            applyTheme(savedTheme);
+        } else {
+            // Default to light if no storage and no Telegram theme override
+            if (!window.Telegram?.WebApp?.colorScheme) {
+                applyTheme('light'); 
+            }
+        }
     };
-    initTheme();
+    initApp();
 
     const timer = setTimeout(() => {
       setIsSplashTimeOver(true);

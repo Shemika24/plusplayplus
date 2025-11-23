@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { signInUser, signUpUser, sendPasswordResetEmailHandler } from '../services/authService';
 import InfoModal from '../components/modals/InfoModal';
 
@@ -191,6 +191,19 @@ const SignUpForm: React.FC<{ onToggleView: (view: AuthView) => void; setModalSta
     const [acceptedTerms, setAcceptedTerms] = useState(false);
     const [loading, setLoading] = useState(false);
     
+    // Telegram Auto-Fill Check
+    useEffect(() => {
+        const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+        if (tgUser) {
+            const firstName = tgUser.first_name || '';
+            const lastName = tgUser.last_name || '';
+            const fullName = `${firstName} ${lastName}`.trim();
+            if (fullName) {
+                setName(fullName);
+            }
+        }
+    }, []);
+
     const closeModal = () => setModalState(prev => ({ ...prev, isOpen: false }));
 
     const handleSubmit = async (e: React.FormEvent) => {

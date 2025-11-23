@@ -11,7 +11,7 @@ interface DailyCheckinModalProps {
 }
 
 const DAYS_CONFIG = [
-    { day: 1, reward: 50, icon: 'fa-coins' },
+    { day: 1, reward: 75, icon: 'fa-coins' },
     { day: 2, reward: 100, icon: 'fa-coins' },
     { day: 3, reward: 150, icon: 'fa-coins' },
     { day: 4, reward: 200, icon: 'fa-coins' },
@@ -124,8 +124,8 @@ const DailyCheckinModal: React.FC<DailyCheckinModalProps> = ({ onClose, onEarnPo
         let reward = dayConfig.reward;
         
         if (dayConfig.isSurprise) {
-            // Surprise values: 1000, 1500, 2000, 3000, 4500, or 5000
-            const possibleRewards = [1000, 1500, 2000, 3000, 4500, 5000];
+            // Surprise values: 750, 1000, 1250, 1500, 2000, 2500
+            const possibleRewards = [750, 1000, 1250, 1500, 2000, 2500];
             const randomIndex = Math.floor(Math.random() * possibleRewards.length);
             reward = possibleRewards[randomIndex];
         }
@@ -255,4 +255,3 @@ const DailyCheckinModal: React.FC<DailyCheckinModalProps> = ({ onClose, onEarnPo
 };
 
 export default DailyCheckinModal;
-    
