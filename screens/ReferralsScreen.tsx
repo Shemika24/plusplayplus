@@ -1,119 +1,162 @@
-import React, { useMemo, useState } from 'react';
-import { ReferralsScreenProps } from '../types';
-import InvitedFriendsModal from '../components/modals/InvitedFriendsModal';
 
-const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string | number; color: string; }> = ({ icon, label, value, color }) => (
-    <div className={`w-full p-4 rounded-2xl text-white text-center shadow-lg ${color}`}>
-        <div className="text-3xl mb-1">{icon}</div>
-        <div className="text-2xl font-bold">{value}</div>
-        <div className="text-sm font-medium opacity-80">{label}</div>
+import React, { useState } from 'react';
+import { UserProfile } from '../types';
+
+interface ReferralsScreenProps {
+    userProfile: UserProfile;
+    onBack: () => void;
+}
+
+const StatCard: React.FC<{ icon: string; title: string; value: string; gradient: string; className?: string }> = ({ icon, title, value, gradient, className }) => (
+    <div className={`p-4 rounded-xl text-white shadow-lg ${gradient} ${className}`}>
+        <div className="flex items-center mb-2 opacity-90">
+            <i className={`${icon} mr-2 text-lg`}></i>
+            <span className="font-semibold text-sm">{title}</span>
+        </div>
+        <p className="text-3xl font-bold">{value}</p>
     </div>
 );
 
+const HowItWorksStep: React.FC<{ number: number; title: string; description: string; color: string }> = ({ number, title, description, color }) => (
+    <div className="flex items-start space-x-4">
+        <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold shadow-md`} style={{backgroundColor: color}}>
+            {number}
+        </div>
+        <div>
+            <h4 className="font-bold text-[var(--dark)]">{title}</h4>
+            <p className="text-sm text-[var(--gray)]">{description}</p>
+        </div>
+    </div>
+);
 
-const ReferralsScreen: React.FC<ReferralsScreenProps> = ({ onBack, referralCount, referralEarnings, user, invitedFriends }) => {
-    const [showInvitedModal, setShowInvitedModal] = useState(false);
+const ReferralsScreen: React.FC<ReferralsScreenProps> = ({ userProfile, onBack }) => {
+    const [copied, setCopied] = useState(false);
+    const { referrals } = userProfile;
 
-    const referralLink = useMemo(() => {
-        if (!user?.id) return '';
-        const botUsername = "ShemiKash_bot";
-        return `https://t.me/${botUsername}?start=${user.id}`;
-    }, [user]);
+    // --- Telegram Referral Logic ---
+    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    const isTelegram = !!tgUser;
+    
+    let activeReferralLink = "";
+    
+    if (isTelegram && tgUser) {
+        const botUsername = "plusplayplus_bot";
+        activeReferralLink = `https://t.me/${botUsername}?start=${tgUser.id}`;
+    } else {
+        // Web Fallback
+        activeReferralLink = `${window.location.origin}?ref=${userProfile.uid}`;
+    }
 
-    const handleCopyLink = () => {
-        if (!referralLink) return;
-        navigator.clipboard.writeText(referralLink).then(() => {
-            alert('Referral link copied to clipboard!');
-        }).catch(err => {
-            console.error('Failed to copy link: ', err);
-            alert('Could not copy link.');
-        });
-    };
-
-    const handleShare = () => {
-        if (!referralLink) return;
-        const text = `🎉 Join this amazing bot and start earning! Use my link to get a special bonus:`;
-        const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(text)}`;
-        if (window.Telegram?.WebApp) {
-            window.Telegram.WebApp.openTelegramLink(shareUrl);
-        } else {
-            handleCopyLink(); // Fallback for non-Telegram env
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(activeReferralLink);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+            alert('Failed to copy link.');
         }
     };
-    
+
+    const handleShare = async () => {
+        // 1. Telegram Native Share
+        if (isTelegram && tgUser && window.Telegram?.WebApp?.openTelegramLink) {
+            const shareText = `🎉 Hello! I'm ${tgUser.first_name} and I'm using this amazing app! Use my link to get a special bonus: ${activeReferralLink}`;
+            const url = `https://t.me/share/url?url=${encodeURIComponent(activeReferralLink)}&text=${encodeURIComponent(shareText)}`;
+            
+            window.Telegram.WebApp.openTelegramLink(url);
+            return;
+        }
+
+        // 2. Standard Web Share
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Join DYVERZE ADS!',
+                    text: '🎉 Join this amazing site and start earning! Use my link to get a special bonus:',
+                    url: activeReferralLink,
+                });
+            } catch (err) {
+                console.error('Error sharing: ', err);
+            }
+        } else {
+            handleCopy();
+            alert('Link copied to clipboard! Share it with your friends.');
+        }
+    };
+
     return (
-        <>
-            <div className="animate-fadeIn space-y-6">
-                <div className="flex items-center gap-4">
-                    <button onClick={onBack} className="p-2 -ml-2 text-dark hover:text-primary"><i className="fa-solid fa-arrow-left text-2xl"></i></button>
-                    <h1 className="text-2xl font-bold text-dark">Your Referrals</h1>
+        <div className="flex flex-col h-full bg-[var(--gray-light)]">
+            <div className="p-4 border-b border-[var(--border-color)] bg-[var(--bg-card)] sticky top-0 z-10 flex items-center">
+                <h1 className="text-lg font-bold text-[var(--dark)]">
+                    Referrals
+                </h1>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+                {/* Stats Section */}
+                <div className="grid grid-cols-2 gap-4">
+                    <StatCard 
+                        icon="fa-solid fa-dollar-sign" 
+                        title="Direct Earnings" 
+                        value={`$${referrals.directEarnings.toFixed(2)}`} 
+                        gradient="bg-gradient-to-r from-green-400 to-teal-500"
+                    />
+                    <StatCard 
+                        icon="fa-solid fa-percent" 
+                        title="Commission Earnings" 
+                        value={`$${referrals.commissionEarnings.toFixed(2)}`} 
+                        gradient="bg-gradient-to-r from-orange-400 to-red-500"
+                    />
+                    <StatCard 
+                        icon="fa-solid fa-users" 
+                        title="Friends Invited" 
+                        value={referrals.count.toString()}
+                        gradient="bg-gradient-to-r from-blue-400 to-cyan-500"
+                    />
+                     <StatCard 
+                        icon="fa-solid fa-user-check" 
+                        title="Active Friends" 
+                        value={referrals.activeCount.toString()}
+                        gradient="bg-gradient-to-r from-purple-400 to-pink-500"
+                    />
                 </div>
-                
-                <div className="space-y-4">
-                    <h2 className="text-xl font-bold text-dark">Your Stats</h2>
-                     <div className="grid grid-cols-2 gap-4">
-                        <StatCard icon={<i className="fa-solid fa-dollar-sign"></i>} label="Direct Earnings" value={`$${referralEarnings.direct.toFixed(2)}`} color="bg-gradient-to-br from-success to-green-400" />
-                        <StatCard icon={<i className="fa-solid fa-percent"></i>} label="Commission Earnings" value={`$${referralEarnings.commission.toFixed(2)}`} color="bg-gradient-to-br from-secondary to-accent-secondary" />
+
+                {/* How It Works Section */}
+                <div className="bg-[var(--bg-card)] p-5 rounded-xl shadow-lg border border-[var(--border-color)]">
+                    <h3 className="text-xl font-bold text-[var(--dark)] mb-4">How It Works</h3>
+                    <div className="space-y-4">
+                        <HowItWorksStep number={1} title="Invite a Friend" description="Share your unique link with friends." color="#82aaff" />
+                        <HowItWorksStep number={2} title="Earn a Bonus" description="Get $0.10 for every friend who joins." color="#ffc98a" />
+                        <HowItWorksStep number={3} title="Earn for Life" description="Receive 10% of their task earnings, forever! Commissions are added weekly." color="#ffb0c5" />
                     </div>
-                    <button onClick={() => setShowInvitedModal(true)} className="w-full transition-transform hover:scale-105 active:scale-100 text-left">
-                         <StatCard icon={<i className="fa-solid fa-users"></i>} label="Friends Invited" value={referralCount.total} color="bg-gradient-to-br from-primary to-accent" />
+                </div>
+
+                {/* Share Your Link Section */}
+                <div className="bg-[var(--bg-card)] p-5 rounded-xl shadow-lg border border-[var(--border-color)]">
+                    <h3 className="text-xl font-bold text-center text-[var(--dark)] mb-4">Share Your Link</h3>
+                    <div className="w-full text-center bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg p-3 mb-4 text-[var(--gray)] font-mono text-sm break-all">
+                        {activeReferralLink}
+                    </div>
+                    <button 
+                        onClick={handleCopy}
+                        className="w-full flex items-center justify-center bg-[var(--bg-input)] text-[var(--dark)] font-semibold py-3 rounded-lg mb-3 transition-colors hover:bg-[var(--bg-card-hover)] border border-[var(--border-color)]"
+                    >
+                        <i className={`fa-solid ${copied ? 'fa-check' : 'fa-copy'} mr-2`}></i>
+                        {copied ? 'Copied!' : 'Copy Link'}
+                    </button>
+                    <button
+                        onClick={handleShare}
+                        className="w-full flex items-center justify-center bg-sky-500 text-white font-bold py-3 rounded-lg transition-colors hover:bg-sky-600 shadow-md shadow-sky-500/30"
+                    >
+                        {isTelegram ? (
+                            <><i className="fa-brands fa-telegram mr-2"></i> Share on Telegram</>
+                        ) : (
+                            <><i className="fa-solid fa-paper-plane mr-2"></i> Share</>
+                        )}
                     </button>
                 </div>
-
-                <div className="bg-white p-6 rounded-2xl shadow-md space-y-4">
-                    <h2 className="text-xl font-bold text-dark text-center">How It Works</h2>
-                    <div className="flex items-start gap-4">
-                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-lg">1</div>
-                        <div>
-                            <h3 className="font-bold text-dark">Invite a Friend</h3>
-                            <p className="text-sm text-gray">Share your unique link with friends.</p>
-                        </div>
-                    </div>
-                    <div className="flex items-start gap-4">
-                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-secondary/10 text-secondary flex items-center justify-center font-bold text-lg">2</div>
-                        <div>
-                            <h3 className="font-bold text-dark">Earn a Bonus</h3>
-                            <p className="text-sm text-gray">Get <span className="font-bold">$0.10</span> for every friend who joins.</p>
-                        </div>
-                    </div>
-                    <div className="flex items-start gap-4">
-                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-success/10 text-success flex items-center justify-center font-bold text-lg">3</div>
-                        <div>
-                            <h3 className="font-bold text-dark">Earn for Life</h3>
-                            <p className="text-sm text-gray">Receive <span className="font-bold">10%</span> of their task earnings, forever! Commissions are added weekly.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-2xl shadow-md text-center space-y-4">
-                    <h2 className="text-xl font-bold text-dark">Share Your Link</h2>
-                    {referralLink ? (
-                        <div className="bg-gray-light p-3 rounded-lg text-sm text-dark font-mono break-words">
-                            {referralLink}
-                        </div>
-                    ) : (
-                         <div className="bg-gray-light p-3 rounded-lg text-sm text-gray font-mono">
-                            Loading your link...
-                        </div>
-                    )}
-                    <div className="flex flex-col sm:flex-row gap-4">
-                         <button onClick={handleCopyLink} disabled={!referralLink} className="w-full flex-1 bg-gray-200 text-dark font-bold py-3 rounded-xl transition-colors hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">
-                            <i className="fa-solid fa-copy mr-2"></i>
-                            Copy Link
-                        </button>
-                        <button onClick={handleShare} disabled={!referralLink} className="w-full flex-1 bg-sky-500 text-white font-bold py-3 rounded-xl shadow-lg shadow-sky-500/30 transition-transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
-                            <i className="fa-brands fa-telegram mr-2"></i>
-                            Share
-                        </button>
-                    </div>
-                </div>
             </div>
-            <InvitedFriendsModal 
-                isOpen={showInvitedModal}
-                onClose={() => setShowInvitedModal(false)}
-                friends={invitedFriends}
-            />
-        </>
+        </div>
     );
 };
 

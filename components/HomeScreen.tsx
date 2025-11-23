@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import BottomNavBar from './BottomNavBar';
 import Header from './Header';
@@ -16,6 +15,7 @@ import WithdrawScreen from '../screens/WithdrawScreen';
 import WithdrawalHistoryScreen from '../screens/WithdrawalHistoryScreen';
 import TaskHistoryScreen from '../screens/TaskHistoryScreen';
 import SpecialOffersScreen from '../screens/SpecialOffersScreen';
+import AboutScreen from '../screens/AboutScreen';
 import DailyComboModal from './modals/DailyComboModal';
 import { Screen, TaskHistory, Withdrawal, UserProfile } from '../types';
 import { addTaskHistoryItem, addWithdrawalRequest, updateUserProfile } from '../services/firestoreService';
@@ -70,7 +70,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
         setActiveTab('Tasks');
     } else if (activeTab === 'Referrals') {
         setActiveTab(referralsSource);
-    } else if (['Notifications', 'Profile', 'ReferBonus'].includes(activeTab)) {
+    } else if (['Notifications', 'Profile', 'ReferBonus', 'About'].includes(activeTab)) {
         setActiveTab('Home');
     } else if (activeTab === 'SpecialOffers') {
         setActiveTab('Earn');
@@ -217,6 +217,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
         return <WithdrawalHistoryScreen userProfile={userProfile} />;
       case 'TaskHistory':
         return <TaskHistoryScreen userProfile={userProfile} />;
+      case 'About':
+        return <AboutScreen />;
       case 'Home':
       default:
         return <MainDashboardScreen userProfile={userProfile} onNavigate={handleNavigation} onOpenBonusCode={() => setBonusCodeModalOpen(true)} />;

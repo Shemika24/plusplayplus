@@ -1,83 +1,255 @@
-import React from 'react';
-import { CheckinState } from '../../types';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { playSound, vibrate, SOUNDS } from '../../utils/sound';
+import { UserProfile } from '../../types';
+import { claimDailyCheckIn } from '../../services/firestoreService';
 
 interface DailyCheckinModalProps {
-    isOpen: boolean;
     onClose: () => void;
-    onCheckinAction: (isSurpriseBoxClaim: boolean) => void;
-    checkinState: CheckinState;
-    canClaimToday: boolean;
-    isOnline: boolean; // NOVA PROP
+    onEarnPoints: (points: number, title: string, icon: string, iconColor: string) => void;
+    userProfile?: UserProfile;
 }
 
-const DailyCheckinModal: React.FC<DailyCheckinModalProps> = ({ isOpen, onClose, onCheckinAction, checkinState, canClaimToday, isOnline }) => {
-    // const rewards = [25, 50, 75, 100, 125, 200, 500]; // Recompensas diárias não serão mais exibidas individualmente
-    const SURPRISE_BOX_REWARD = 1500;
-    const { claimedDays } = checkinState;
-    
-    if (!isOpen) return null;
+const DAYS_CONFIG = [
+    { day: 1, reward: 75, icon: 'fa-coins' },
+    { day: 2, reward: 100, icon: 'fa-coins' },
+    { day: 3, reward: 150, icon: 'fa-coins' },
+    { day: 4, reward: 200, icon: 'fa-coins' },
+    { day: 5, reward: 300, icon: 'fa-coins' },
+    { day: 6, reward: 500, icon: 'fa-coins' },
+    { day: 7, reward: 0, icon: 'fa-gift', isSurprise: true },
+];
 
-    const showSurpriseBox = canClaimToday && claimedDays === 6; // Mostra a caixa de surpresa no dia 7 (claimedDays é 0-indexed)
+const DailyCheckinModal: React.FC<DailyCheckinModalProps> = ({ onClose, onEarnPoints, userProfile }) => {
+    // --- State ---
+    const [days, setDays] = useState(DAYS_CONFIG.map(d => ({ ...d, status: 'future' })));
+    const [isClaiming, setIsClaiming] = useState(false);
+    const [countdown, setCountdown] = useState(0);
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [wonAmount, setWonAmount] = useState(0);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+    // Strict Lock Ref (Updates synchronously)
+    const isClaimingRef = useRef(false);
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // --- Date & Status Logic ---
+    const getTodayStr = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+
+    useEffect(() => {
+        if (!userProfile) return;
+
+        const todayStr = getTodayStr();
+        const lastDate = userProfile.dailyCheckIn?.lastDate || "";
+        const rawStreak = userProfile.dailyCheckIn?.streak || 0;
+        const isAlreadyClaimed = lastDate === todayStr;
+
+        // Calculate the start of the current 7-day cycle.
+        // If we claimed today (isAlreadyClaimed), we act as if we are still in the cycle of the claim we just made (streak - 1).
+        // If we haven't claimed, we use the current streak to see where we are.
+        const cycleBase = Math.floor((rawStreak - (isAlreadyClaimed ? 1 : 0)) / 7) * 7;
+
+        setDays(DAYS_CONFIG.map((d, index) => {
+            // The absolute day number for this specific card in the sequence (e.g., Day 8, Day 9...)
+            const dayAbsoluteNumber = cycleBase + index + 1;
+
+            // LOGIC:
+            // 1. If the absolute day number is <= the user's total streak, it is CLAIMED.
+            if (dayAbsoluteNumber <= rawStreak) {
+                return { ...d, status: 'claimed' };
+            }
+            
+            // 2. If the absolute day number is exactly (streak + 1), AND we haven't claimed today, it is CURRENT.
+            if (dayAbsoluteNumber === rawStreak + 1 && !isAlreadyClaimed) {
+                return { ...d, status: 'current' };
+            }
+
+            // 3. Otherwise, it is in the FUTURE.
+            return { ...d, status: 'future' };
+        }));
+
+        // If claimed today, lock ref immediately just in case
+        if (isAlreadyClaimed) {
+            isClaimingRef.current = true;
+        } else {
+            isClaimingRef.current = false;
+        }
+
+    }, [userProfile]);
+
+    // --- Cleanup ---
+    useEffect(() => {
+        return () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+        };
+    }, []);
+
+    // --- Handlers ---
+    const handleStartClaim = (dayIndex: number) => {
+        // 1. Strict Checks
+        if (isClaimingRef.current || isClaiming) return;
+        const targetDay = days[dayIndex];
+        
+        // Only allow clicking if status is strictly 'current'
+        if (targetDay.status !== 'current') return;
+
+        // 2. Lock & Update UI
+        isClaimingRef.current = true;
+        setIsClaiming(true);
+        setCountdown(15);
+        setErrorMsg(null);
+
+        // 3. Load Ad (Fire & Forget)
+        try {
+             if ((window as any).show_10206331) (window as any).show_10206331();
+        } catch (e) {}
+
+        // 4. Start Timer
+        timerRef.current = setInterval(() => {
+            setCountdown(prev => {
+                if (prev <= 1) {
+                    if (timerRef.current) clearInterval(timerRef.current);
+                    executeClaim(dayIndex);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+    };
+
+    const executeClaim = async (dayIndex: number) => {
+        if (!userProfile) return;
+
+        const dayConfig = days[dayIndex];
+        let reward = dayConfig.reward;
+        
+        if (dayConfig.isSurprise) {
+            // Surprise values: 750, 1000, 1250, 1500, 2000, 2500
+            const possibleRewards = [750, 1000, 1250, 1500, 2000, 2500];
+            const randomIndex = Math.floor(Math.random() * possibleRewards.length);
+            reward = possibleRewards[randomIndex];
+        }
+
+        const todayStr = getTodayStr();
+        const newStreak = (userProfile.dailyCheckIn?.streak || 0) + 1;
+
+        try {
+            await claimDailyCheckIn(userProfile.uid, reward, todayStr, newStreak);
+            
+            // Success!
+            handleSuccess(reward);
+
+        } catch (err: any) {
+            console.error(err);
+            // Handle Race Condition: If backend says "Already checked in", treat as visual success
+            if (err.message && err.message.includes("Already checked in")) {
+                // Maybe they double clicked too fast or refreshed. Show success anyway to avoid confusion.
+                handleSuccess(reward); 
+            } else {
+                // Genuine Error
+                setIsClaiming(false);
+                isClaimingRef.current = false;
+                setErrorMsg("Connection error. Please try again.");
+            }
+        }
+    };
+
+    const handleSuccess = (reward: number) => {
+        playSound(SOUNDS.SUCCESS);
+        vibrate(200);
+        setWonAmount(reward);
+        setShowSuccess(true);
+        setIsClaiming(false); // Visual loading stop, but ref stays true via "Already Claimed" logic in effect next render
+        
+        // Notify Parent (Points are already in DB, just visual update)
+        onEarnPoints(reward, 'Daily Check-in', 'fa-solid fa-calendar-check', 'text-green-500');
+
+        setTimeout(() => {
+            onClose();
+        }, 2500);
+    };
 
     return (
-        <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-[100] animate-fadeIn" onClick={onClose}>
-            <div className="bg-white p-6 rounded-2xl shadow-lg max-w-sm w-11/12 relative animate-slideInUp" onClick={e => e.stopPropagation()}>
-                <button className="absolute top-4 right-4 text-gray hover:text-dark" onClick={onClose} aria-label="Close">
-                    <i className="fa-solid fa-xmark text-2xl"></i>
-                </button>
-                <h2 className="text-2xl font-bold text-center text-dark mb-6">Daily Check-in</h2>
-                <div className="grid grid-cols-4 gap-3 mb-6">
-                    {Array.from({ length: 6 }).map((_, index) => { // Renderiza apenas os dias 1-6
-                        const day = index + 1;
-                        const isClaimed = day <= claimedDays;
-                        const isNextDay = canClaimToday && day === claimedDays + 1;
-                        
-                        let cardClasses = 'bg-gray-light border-transparent';
-                        if (isClaimed) cardClasses = 'bg-success/90 text-white border-success';
-                        if (isNextDay) cardClasses = 'bg-primary/10 border-primary animate-pulse cursor-pointer hover:shadow-lg hover:-translate-y-0.5';
-
-                        return (
-                            <button
-                                key={`day-${day}`}
-                                className={`flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all duration-200 ${cardClasses} disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none disabled:animate-none`}
-                                onClick={() => onCheckinAction(false)}
-                                disabled={!isNextDay || !isOnline} // DESABILITA SE ESTIVER OFFLINE
-                                aria-label={isNextDay ? `Claim Day ${day} reward` : `Day ${day}`}
-                            >
-                                <span className={`text-xs font-medium ${isClaimed ? 'text-white/80' : 'text-gray'}`}>Day {day}</span>
-                                <i className={`fa-solid fa-sun text-2xl my-1 ${isClaimed ? 'text-yellow-300' : isNextDay ? 'text-yellow-500' : 'text-gray-400'}`} />
-                                {/* Remove a exibição de pontos aqui */}
-                                {/* <span className={`font-bold text-sm ${isClaimed ? 'text-white' : 'text-dark'}`}>{rewards[index]} points</span> */}
-                            </button>
-                        );
-                    })}
-
-                    {/* Botão da Caixa de Surpresa para o 7º dia */}
-                    <button
-                        key="surprise-box"
-                        className={`flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all duration-200 
-                            ${showSurpriseBox ? 'bg-yellow-100 border-yellow-500 animate-pulse cursor-pointer hover:shadow-lg hover:-translate-y-0.5' :
-                                claimedDays === 7 ? 'bg-success/90 text-white border-success' : // Se já reivindicado o 7º dia (esta condição nunca será verdadeira, pois claimedDays reseta para 0)
-                                'bg-gray-light border-transparent disabled:opacity-70 disabled:cursor-not-allowed'
-                            }`}
-                        onClick={() => onCheckinAction(true)}
-                        disabled={!showSurpriseBox || !isOnline} // DESABILITA SE ESTIVER OFFLINE
-                        aria-label={showSurpriseBox ? "Claim Surprise Box reward" : "Surprise Box"}
-                    >
-                        <span className={`text-xs font-medium ${claimedDays === 7 ? 'text-white/80' : 'text-gray'}`}>Day 7</span>
-                        <i className={`fa-solid fa-box-open text-2xl my-1 ${showSurpriseBox ? 'text-yellow-600' : claimedDays === 7 ? 'text-white' : 'text-gray-400'}`} />
-                        {/* Remove a exibição de pontos/texto "Claimed" aqui, conforme solicitado */}
-                        <span className={`font-bold text-sm ${claimedDays === 7 ? 'text-white' : 'text-dark'}`}>
-                            &nbsp; {/* Um espaço vazio para manter o layout, mas sem texto de pontos/reivindicado */}
-                        </span>
-                    </button>
+        <div className="p-3 relative select-none">
+             {/* BLOCKING OVERLAY for Timer */}
+             {isClaiming && !showSuccess && (
+                <div className="absolute inset-0 z-[60] bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center rounded-xl cursor-wait">
+                     <div className="relative w-16 h-16 flex items-center justify-center">
+                        <svg className="animate-spin w-full h-full text-[var(--primary)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span className="absolute text-sm font-bold text-[var(--dark)]">{countdown}s</span>
+                    </div>
+                    <p className="text-xs font-semibold text-[var(--primary)] mt-3 animate-pulse">Claiming Reward...</p>
+                    <p className="text-[10px] text-gray-400 mt-1">Please do not close</p>
                 </div>
-                <p className="text-center text-gray text-sm mt-2 h-10 flex items-center justify-center px-4">
-                    {canClaimToday 
-                        ? (showSurpriseBox ? "Click on the Surprise Box to claim your bonus!" : "You haven't claimed today. Do it now by clicking on the day.") 
-                        : "Come back tomorrow."}
-                </p>
+             )}
+
+             {/* SUCCESS OVERLAY */}
+             {showSuccess && (
+                <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-white/95 backdrop-blur-sm rounded-xl animate-fadeIn">
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-2 animate-bounce">
+                        <i className="fa-solid fa-check text-2xl text-green-600"></i>
+                    </div>
+                    <h2 className="text-xl font-bold text-green-600">+{wonAmount} Points</h2>
+                    <p className="text-xs text-gray-500 mt-1">See you tomorrow!</p>
+                </div>
+            )}
+
+             {errorMsg && (
+                <div className="bg-red-100 text-red-600 text-xs p-2 rounded mb-2 text-center border border-red-200">
+                    {errorMsg}
+                </div>
+            )}
+
+            {/* Grid */}
+            <div className="grid grid-cols-4 gap-2">
+                {days.map((day, index) => {
+                    const isClaimed = day.status === 'claimed';
+                    const isCurrent = day.status === 'current';
+                    const isSurprise = day.isSurprise;
+
+                    return (
+                        <button
+                            key={index}
+                            disabled={!isCurrent || isClaiming}
+                            onClick={() => handleStartClaim(index)}
+                            className={`
+                                relative aspect-square rounded-xl border-2 flex flex-col items-center justify-center p-1 transition-all duration-200
+                                ${isClaimed 
+                                    ? 'bg-green-50 border-green-200 opacity-80' 
+                                    : isCurrent 
+                                        ? 'bg-white border-[var(--primary)] shadow-md transform hover:scale-105 cursor-pointer' 
+                                        : 'bg-gray-50 border-gray-100 opacity-60 cursor-not-allowed'
+                                }
+                            `}
+                        >
+                            <span className={`text-[9px] font-bold uppercase mb-1 ${isCurrent ? 'text-[var(--primary)]' : 'text-gray-400'}`}>
+                                Day {day.day}
+                            </span>
+
+                            <div className={`text-lg mb-1 ${isClaimed ? 'text-green-500' : isCurrent ? (isSurprise ? 'text-pink-500' : 'text-yellow-500') : 'text-gray-300'}`}>
+                                <i className={`fa-solid ${isSurprise && !isClaimed ? 'fa-gift' : 'fa-coins'}`}></i>
+                            </div>
+
+                             {isClaimed ? (
+                                <div className="absolute inset-0 flex items-center justify-center bg-green-100/80 rounded-lg z-10">
+                                    <i className="fa-solid fa-check text-green-600 text-lg"></i>
+                                </div>
+                            ) : (
+                                <span className={`text-[10px] font-bold ${isCurrent ? 'text-[var(--dark)]' : 'text-gray-400'}`}>
+                                    {isSurprise ? 'Surprise' : `+${day.reward}`}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
             </div>
+             <style>{`
+                @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+                .animate-fadeIn { animation: fadeIn 0.2s ease-out forwards; }
+            `}</style>
         </div>
     );
 };

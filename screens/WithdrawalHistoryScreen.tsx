@@ -1,151 +1,402 @@
-import React, { useMemo, useState } from 'react';
-import { Transaction, WithdrawalHistoryScreenProps } from '../types';
 
-// Helper to format timestamp into a date group key (e.g., "Today", "Yesterday", "June 29, 2024")
-const formatDateGroup = (timestamp: number): string => {
-    const date = new Date(timestamp);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Withdrawal, UserProfile } from '../types';
+import { getWithdrawalHistoryPaginated, getWithdrawalHistoryCount } from '../services/firestoreService';
+import { QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
-    if (date.toDateString() === today.toDateString()) {
-        return 'Today';
-    }
-    if (date.toDateString() === yesterday.toDateString()) {
-        return 'Yesterday';
-    }
-    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+interface WithdrawalHistoryScreenProps {
+    userProfile: UserProfile;
+}
+
+type DateRangeOption = 'All' | 'Today' | 'Yesterday' | 'Last7' | 'Last30' | 'LastYear' | 'Custom';
+type StatusOption = 'All' | 'Completed' | 'Pending' | 'Failed';
+type MethodOption = 'All' | 'PayPal' | 'Payeer' | 'Payoneer' | 'Airtm' | 'Crypto';
+
+const StatusBadge: React.FC<{ status: Withdrawal['status'] }> = ({ status }) => {
+    const styles = {
+        Completed: 'bg-green-100 text-green-700',
+        Pending: 'bg-yellow-100 text-yellow-700',
+        Failed: 'bg-red-100 text-red-700',
+    };
+    return (
+        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${styles[status]}`}>
+            {status}
+        </span>
+    );
 };
 
-// Helper to format timestamp into just the time
-const formatTime = (timestamp: number): string => {
-    return new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-};
+const WithdrawalItem: React.FC<{ item: Withdrawal }> = ({ item }) => {
+    const icons: Record<string, string> = {
+        Completed: 'fa-solid fa-check-circle text-green-500',
+        Pending: 'fa-solid fa-hourglass-half text-yellow-500',
+        Failed: 'fa-solid fa-times-circle text-red-500',
+    };
 
-const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ transactions, onBack }) => {
-    const [selectedDate, setSelectedDate] = useState(''); // YYYY-MM-DD format from input
-
-    // 1. Filter transactions based on selectedDate
-    const filteredTransactions = useMemo(() => {
-        if (!selectedDate) {
-            return transactions;
+    const formattedDateTime = useMemo(() => {
+        let dateObj: Date;
+        if (item.timestamp && typeof item.timestamp.toDate === 'function') {
+            dateObj = item.timestamp.toDate();
+        } else {
+            dateObj = new Date(item.date);
         }
-        const filterDate = new Date(selectedDate);
-        const filterDateString = new Date(filterDate.getTime() + filterDate.getTimezoneOffset() * 60000).toDateString();
-        
-        return transactions.filter(t => {
-            const transactionDate = new Date(t.timestamp).toDateString();
-            return transactionDate === filterDateString;
+
+        return dateObj.toLocaleString("en-US", {
+            timeZone: "America/New_York",
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
         });
-    }, [transactions, selectedDate]);
-
-    // 2. Group the (now filtered) transactions
-    const groupedTransactions = useMemo(() => filteredTransactions.reduce((acc, transaction) => {
-        const dateKey = formatDateGroup(transaction.timestamp);
-        if (!acc[dateKey]) {
-            acc[dateKey] = [];
-        }
-        acc[dateKey].push(transaction);
-        return acc;
-    }, {} as Record<string, Transaction[]>), [filteredTransactions]);
-    
-    // 3. Sort group keys
-    const sortedGroupKeys = useMemo(() => Object.keys(groupedTransactions).sort((a, b) => {
-        const dateA = a === 'Today' ? new Date().setHours(0,0,0,0) : a === 'Yesterday' ? new Date(new Date().setDate(new Date().getDate() - 1)).setHours(0,0,0,0) : new Date(a).getTime();
-        const dateB = b === 'Today' ? new Date().setHours(0,0,0,0) : b === 'Yesterday' ? new Date(new Date().setDate(new Date().getDate() - 1)).setHours(0,0,0,0) : new Date(b).getTime();
-        return dateB - dateA;
-    }), [groupedTransactions]);
-
-    // 4. Calculate daily stats for withdrawals
-    const dailyStats = useMemo(() => {
-        return Object.keys(groupedTransactions).reduce((acc, dateGroup) => {
-            const dailyTransactions = groupedTransactions[dateGroup];
-            const withdrawalsCount = dailyTransactions.length;
-            const amountWithdrawn = dailyTransactions.reduce((sum, t) => {
-                if (t.isDebit && t.amount.includes('$')) {
-                    const amount = parseFloat(t.amount.replace(/[^0-9.]/g, ''));
-                    return sum + (isNaN(amount) ? 0 : amount);
-                }
-                return sum;
-            }, 0);
-
-            acc[dateGroup] = { withdrawalsCount, amountWithdrawn };
-            return acc;
-        }, {} as Record<string, { withdrawalsCount: number; amountWithdrawn: number }>);
-    }, [groupedTransactions]);
+    }, [item]);
 
     return (
-        <div className="animate-fadeIn space-y-6">
-            <div className="flex justify-between items-center gap-4 sticky top-0 bg-light py-2 -mx-4 px-4 z-10 shadow-sm border-b border-gray-medium">
-                <div className="flex items-center gap-4">
-                    <button onClick={onBack} className="p-2 -ml-2 text-dark hover:text-primary" aria-label="Go back">
-                        <i className="fa-solid fa-arrow-left text-2xl"></i>
-                    </button>
-                    <h1 className="text-xl md:text-2xl font-bold text-dark">Withdrawal History</h1>
-                </div>
-                <div className="relative flex items-center">
-                    <label htmlFor="date-filter" className="text-dark p-2" aria-label="Filter by date">
-                        <i className="fa-solid fa-calendar-day"></i>
-                    </label>
-                    <input
-                        id="date-filter"
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        className="w-32 py-1 border border-gray-medium rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    />
-                     {selectedDate && (
-                        <button onClick={() => setSelectedDate('')} className="ml-2 text-gray hover:text-dark" aria-label="Clear date filter">
-                            <i className="fa-solid fa-xmark"></i>
-                        </button>
-                    )}
-                </div>
+        <div className="flex items-center p-4 border-b border-[var(--border-color)] last:border-b-0 bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] transition-colors">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center mr-4 bg-[var(--bg-input)]">
+                <i className={`${icons[item.status] || 'fa-solid fa-question text-gray-400'} text-xl`}></i>
             </div>
+            <div className="flex-1">
+                <p className="font-bold text-sm text-[var(--dark)]">{item.method}</p>
+                <p className="text-xs text-[var(--gray)] mt-0.5">{formattedDateTime}</p>
+            </div>
+            <div className="text-right">
+                <p className="font-bold text-sm text-[var(--dark)]">${item.amount.toFixed(2)}</p>
+                <StatusBadge status={item.status} />
+            </div>
+        </div>
+    )
+}
 
-            {sortedGroupKeys.length === 0 ? (
-                <div className="text-center py-8 bg-white rounded-xl shadow-sm">
-                    <p className="font-semibold text-gray">No withdrawals found.</p>
-                     <p className="text-sm text-gray mt-1">
-                        {selectedDate ? "No withdrawals were made on this date." : "Your withdrawal history will appear here."}
-                    </p>
+const WithdrawalHistoryScreen: React.FC<WithdrawalHistoryScreenProps> = ({ userProfile }) => {
+    const [history, setHistory] = useState<Withdrawal[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+    const [hasMore, setHasMore] = useState(true);
+    const [totalCount, setTotalCount] = useState<number | null>(null);
+
+    // Filter States
+    const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const [dateRange, setDateRange] = useState<DateRangeOption>('All');
+    const [customStartDate, setCustomStartDate] = useState('');
+    const [customEndDate, setCustomEndDate] = useState('');
+    const [statusFilter, setStatusFilter] = useState<StatusOption>('All');
+    const [methodFilter, setMethodFilter] = useState<MethodOption>('All');
+    
+    const [appliedStart, setAppliedStart] = useState<Date | undefined>(undefined);
+    const [appliedEnd, setAppliedEnd] = useState<Date | undefined>(undefined);
+
+    const observerTarget = useRef<HTMLDivElement>(null);
+
+    const calculateDateRange = (option: DateRangeOption, customStart?: string, customEnd?: string): { start?: Date, end?: Date } => {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+        
+        switch (option) {
+            case 'Today':
+                return { start: todayStart, end: todayEnd };
+            case 'Yesterday':
+                const yesterStart = new Date(todayStart);
+                yesterStart.setDate(yesterStart.getDate() - 1);
+                const yesterEnd = new Date(todayEnd);
+                yesterEnd.setDate(yesterEnd.getDate() - 1);
+                return { start: yesterStart, end: yesterEnd };
+            case 'Last7':
+                const last7Start = new Date(todayStart);
+                last7Start.setDate(last7Start.getDate() - 6);
+                return { start: last7Start, end: todayEnd };
+            case 'Last30':
+                const last30Start = new Date(todayStart);
+                last30Start.setDate(last30Start.getDate() - 29);
+                return { start: last30Start, end: todayEnd };
+            case 'LastYear':
+                const lastYearStart = new Date(todayStart);
+                lastYearStart.setFullYear(lastYearStart.getFullYear() - 1);
+                return { start: lastYearStart, end: todayEnd };
+            case 'Custom':
+                if (customStart && customEnd) {
+                    const start = new Date(customStart);
+                    const end = new Date(customEnd);
+                    end.setHours(23, 59, 59, 999);
+                    return { start, end };
+                }
+                return {};
+            case 'All':
+            default:
+                return {};
+        }
+    };
+
+    const fetchHistory = useCallback(async (isInitial = false) => {
+        if (isInitial) {
+            setIsLoading(true);
+            setLastDoc(null); // Reset cursor
+        } else {
+            if (isLoadingMore || !hasMore) return;
+            setIsLoadingMore(true);
+        }
+
+        try {
+            const currentStartAfter = isInitial ? null : lastDoc;
+            
+            const { history: newHistory, lastVisible } = await getWithdrawalHistoryPaginated(
+                userProfile.uid, 
+                currentStartAfter,
+                appliedStart,
+                appliedEnd
+            );
+
+            if (isInitial) {
+                 const count = await getWithdrawalHistoryCount(userProfile.uid, appliedStart, appliedEnd);
+                 setTotalCount(count);
+            }
+            
+            setHistory(prev => isInitial ? newHistory : [...prev, ...newHistory]);
+            setLastDoc(lastVisible);
+
+            if (!lastVisible || newHistory.length === 0) {
+                setHasMore(false);
+            } else {
+                setHasMore(true);
+            }
+        } catch (error) {
+            console.error("Error fetching withdrawal history:", error);
+        } finally {
+            setIsLoading(false);
+            setIsLoadingMore(false);
+        }
+    }, [userProfile.uid, lastDoc, isLoadingMore, hasMore, appliedStart, appliedEnd]);
+
+    // Intersection Observer
+    useEffect(() => {
+        const element = observerTarget.current;
+        if (!element || isLoading || !hasMore) return;
+
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting && !isLoadingMore && hasMore) {
+                    fetchHistory(false);
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        observer.observe(element);
+
+        return () => {
+            if (element) observer.unobserve(element);
+        };
+    }, [fetchHistory, hasMore, isLoading, isLoadingMore]);
+
+    useEffect(() => {
+        fetchHistory(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [appliedStart, appliedEnd]);
+
+    const applyFilters = () => {
+        const { start, end } = calculateDateRange(dateRange, customStartDate, customEndDate);
+        setAppliedStart(start);
+        setAppliedEnd(end);
+        setIsFilterOpen(false);
+    };
+    
+    const resetFilters = () => {
+        setDateRange('All');
+        setCustomStartDate('');
+        setCustomEndDate('');
+        setStatusFilter('All');
+        setMethodFilter('All');
+        setAppliedStart(undefined);
+        setAppliedEnd(undefined);
+        setIsFilterOpen(false);
+    };
+
+    // Client-side Filtering
+    const filteredHistory = useMemo(() => {
+        return history.filter(item => {
+            const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
+            
+            let matchesMethod = true;
+            if (methodFilter !== 'All') {
+                if (methodFilter === 'Crypto') {
+                    const commonMethods = ['PayPal', 'Payeer', 'Payoneer', 'Airtm'];
+                    matchesMethod = !commonMethods.includes(item.method);
+                } else {
+                    matchesMethod = item.method === methodFilter;
+                }
+            }
+
+            return matchesStatus && matchesMethod;
+        });
+    }, [history, statusFilter, methodFilter]);
+
+    const displayCount = (statusFilter === 'All' && methodFilter === 'All') ? totalCount : filteredHistory.length;
+
+    return (
+        <div className="flex flex-col h-full bg-[var(--gray-light)]">
+            <div className="p-4 border-b border-[var(--border-color)] bg-[var(--bg-card)] sticky top-0 z-10 shadow-sm">
+                <div className="flex justify-between items-center">
+                    <h1 className="text-lg font-bold text-[var(--dark)]">
+                        Withdrawal History {displayCount !== null && <span className="text-sm font-medium text-[var(--gray)] ml-1">({displayCount})</span>}
+                    </h1>
+                    <button 
+                        onClick={() => setIsFilterOpen(!isFilterOpen)}
+                        className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isFilterOpen || dateRange !== 'All' || statusFilter !== 'All' || methodFilter !== 'All' ? 'bg-blue-100 text-[var(--primary)]' : 'bg-[var(--bg-input)] text-[var(--gray)]'}`}
+                    >
+                        <i className="fa-solid fa-filter"></i>
+                    </button>
                 </div>
-            ) : (
-                <div className="space-y-6">
-                    {sortedGroupKeys.map(dateGroup => (
-                        <div key={dateGroup}>
-                            <div className="flex justify-between items-center mb-3 px-2 sticky top-[68px] bg-light py-2 z-5 border-b border-gray-light">
-                                <h2 className="text-lg font-bold text-dark">{dateGroup}</h2>
-                                <div className="flex items-center gap-3 text-xs text-gray font-semibold">
-                                    <span className="flex items-center gap-1.5" title="Number of Withdrawals">
-                                        <i className="fa-solid fa-arrow-up-from-bracket text-primary text-base"></i>
-                                        {dailyStats[dateGroup]?.withdrawalsCount || 0}
-                                    </span>
-                                    <span className="flex items-center gap-1.5" title="Total Amount Withdrawn">
-                                        <i className="fa-solid fa-dollar-sign text-success text-base"></i>
-                                        ${dailyStats[dateGroup]?.amountWithdrawn.toFixed(2) || '0.00'}
-                                    </span>
-                                </div>
+
+                 {/* Filter Panel */}
+                 {isFilterOpen && (
+                    <div className="mt-4 animate-fadeIn space-y-4">
+                        {/* Date Range */}
+                        <div>
+                            <p className="text-xs font-bold text-[var(--gray)] mb-2 uppercase tracking-wider">Date Range</p>
+                            <div className="flex flex-wrap gap-2">
+                                {[
+                                    { id: 'All', label: 'All Time' },
+                                    { id: 'Last7', label: '7 Days' },
+                                    { id: 'Last30', label: '30 Days' },
+                                    { id: 'LastYear', label: '1 Year' },
+                                    { id: 'Custom', label: 'Custom' },
+                                ].map((opt) => (
+                                    <button
+                                        key={opt.id}
+                                        onClick={() => setDateRange(opt.id as DateRangeOption)}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${dateRange === opt.id ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'bg-[var(--bg-card)] text-[var(--gray)] border-[var(--border-color)] hover:bg-[var(--bg-card-hover)]'}`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
                             </div>
-                            <div className="bg-white rounded-xl shadow-sm divide-y divide-gray-light">
-                                {groupedTransactions[dateGroup].map(item => (
-                                    <div key={item.id} className="flex items-center gap-4 py-3 px-4">
-                                        <div className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full text-xl ${item.isDebit ? 'text-error' : 'text-success'}`}>
-                                            <i className={item.iconClass}></i>
-                                        </div>
-                                        <div className="flex-grow min-w-0">
-                                            <p className="font-semibold text-dark truncate">{item.description}</p>
-                                            <p className="text-xs text-gray">{formatTime(item.timestamp)}</p>
-                                        </div>
-                                        <p className={`font-bold text-base whitespace-nowrap ${item.isDebit ? 'text-error' : 'text-success'}`}>
-                                            {item.amount}
-                                        </p>
-                                    </div>
+                            {dateRange === 'Custom' && (
+                                <div className="flex items-center gap-2 mt-3">
+                                    <input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className="w-1/2 p-2 border border-[var(--border-color)] rounded-lg text-sm focus:outline-none focus:border-[var(--primary)] bg-[var(--bg-input)] text-[var(--dark)]" />
+                                    <span className="text-gray-400">-</span>
+                                    <input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className="w-1/2 p-2 border border-[var(--border-color)] rounded-lg text-sm focus:outline-none focus:border-[var(--primary)] bg-[var(--bg-input)] text-[var(--dark)]" />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Status */}
+                        <div>
+                            <p className="text-xs font-bold text-[var(--gray)] mb-2 uppercase tracking-wider">Status</p>
+                            <div className="flex flex-wrap gap-2">
+                                {['All', 'Completed', 'Pending', 'Failed'].map((status) => (
+                                    <button
+                                        key={status}
+                                        onClick={() => setStatusFilter(status as StatusOption)}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${statusFilter === status ? 'bg-[var(--secondary)] text-white border-[var(--secondary)]' : 'bg-[var(--bg-card)] text-[var(--gray)] border-[var(--border-color)] hover:bg-[var(--bg-card-hover)]'}`}
+                                    >
+                                        {status}
+                                    </button>
                                 ))}
                             </div>
                         </div>
-                    ))}
-                </div>
-            )}
+
+                         {/* Method */}
+                         <div>
+                            <p className="text-xs font-bold text-[var(--gray)] mb-2 uppercase tracking-wider">Payment Method</p>
+                            <div className="flex flex-wrap gap-2">
+                                {['All', 'PayPal', 'Payeer', 'Payoneer', 'Airtm', 'Crypto'].map((method) => (
+                                    <button
+                                        key={method}
+                                        onClick={() => setMethodFilter(method as MethodOption)}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all ${methodFilter === method ? 'bg-purple-500 text-white border-purple-500' : 'bg-[var(--bg-card)] text-[var(--gray)] border-[var(--border-color)] hover:bg-[var(--bg-card-hover)]'}`}
+                                    >
+                                        {method}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-3 pt-2">
+                            <button onClick={resetFilters} className="flex-1 py-2 text-sm font-bold text-[var(--gray)] bg-[var(--bg-input)] rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors">Reset</button>
+                            <button onClick={applyFilters} className="flex-1 py-2 text-sm font-bold text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-dark)] transition-colors">Apply Filters</button>
+                        </div>
+                    </div>
+                 )}
+
+                {/* Active Filters Summary */}
+                {!isFilterOpen && (dateRange !== 'All' || statusFilter !== 'All' || methodFilter !== 'All') && (
+                    <div className="mt-2 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                        {dateRange !== 'All' && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 whitespace-nowrap">
+                                {dateRange === 'Custom' ? `${customStartDate} - ${customEndDate}` : dateRange}
+                            </span>
+                        )}
+                        {statusFilter !== 'All' && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 whitespace-nowrap">
+                                {statusFilter}
+                            </span>
+                        )}
+                         {methodFilter !== 'All' && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 whitespace-nowrap">
+                                {methodFilter}
+                            </span>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+                 {isLoading ? (
+                    <div className="text-center p-8 text-[var(--gray)]">
+                        <i className="fa-solid fa-spinner fa-spin text-4xl"></i>
+                    </div>
+                 ) : filteredHistory.length > 0 ? (
+                    <>
+                        {filteredHistory.map(item => (
+                            <WithdrawalItem key={item.id as string} item={item} />
+                        ))}
+                        
+                        {hasMore && (
+                            <div ref={observerTarget} className="py-6 flex justify-center items-center">
+                                {isLoadingMore ? (
+                                    <div className="flex items-center text-[var(--gray)] text-sm">
+                                        <i className="fa-solid fa-spinner fa-spin mr-2"></i>
+                                        Loading more...
+                                    </div>
+                                ) : (
+                                    <div className="h-4"></div> 
+                                )}
+                            </div>
+                        )}
+
+                        {!hasMore && (
+                            <div className="pt-8 pb-24 text-center text-[var(--gray)] flex flex-col items-center justify-center opacity-60">
+                                <i className="fa-regular fa-circle-check text-2xl mb-2"></i>
+                                <p className="text-sm font-medium">No more history</p>
+                            </div>
+                        )}
+                    </>
+                 ) : (
+                    <div className="text-center p-8 text-[var(--gray)]">
+                        <i className="fa-solid fa-filter-circle-xmark text-4xl mb-4 text-gray-300"></i>
+                        <p>No withdrawal history found.</p>
+                        <p className="text-sm">Try adjusting your filters.</p>
+                    </div>
+                 )}
+            </div>
+            <style>{`
+                .no-scrollbar::-webkit-scrollbar {
+                    display: none;
+                }
+                .no-scrollbar {
+                    -ms-overflow-style: none;
+                    scrollbar-width: none;
+                }
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(-10px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .animate-fadeIn {
+                    animation: fadeIn 0.2s ease-out forwards;
+                }
+            `}</style>
         </div>
     );
 };

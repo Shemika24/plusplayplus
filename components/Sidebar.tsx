@@ -42,7 +42,8 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const secondaryMenuItems = [
     { label: 'Referrals', icon: 'fa-solid fa-user-plus', action: onInviteFriends },
-    { label: 'Help Center', icon: 'fa-solid fa-circle-info', action: onHelpCenter },
+    { label: 'About App', icon: 'fa-solid fa-circle-info', action: () => navigateTo('About') },
+    { label: 'Help Center', icon: 'fa-solid fa-headset', action: onHelpCenter },
     { label: 'Logout', icon: 'fa-solid fa-right-from-bracket', action: onLogout, isLogout: true },
   ];
 

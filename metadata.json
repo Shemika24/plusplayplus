@@ -1,7 +1,5 @@
 {
-  "name": "Shemi-Kash",
-  "description": "A dynamic rewards application where users can earn points by completing various tasks, participating in daily check-ins, and trying their luck on a prize wheel. Features AI-powered task generation for endless engagement and a wallet system to track and withdraw earnings.",
-  "requestFramePermissions": [
-    "camera"
-  ]
+  "name": "DYVERZE ADS",
+  "description": "An application to earn money with ads. Turn your time into real earnings.",
+  "requestFramePermissions": []
 }
