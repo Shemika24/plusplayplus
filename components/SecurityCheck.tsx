@@ -14,13 +14,29 @@ const SecurityCheck: React.FC<SecurityCheckProps> = ({ children }) => {
     const [reason, setReason] = useState<string>('');
 
     useEffect(() => {
+        let isMounted = true;
         const checkSecurity = async () => {
+            // Create a controller to abort the fetch if it takes too long
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3500); // 3.5s timeout
+
             try {
-                const response = await fetch(API_URL);
+                const response = await fetch(API_URL, { signal: controller.signal });
+                clearTimeout(timeoutId);
+
+                if (!isMounted) return;
+
+                if (!response.ok) {
+                    // Fail open on HTTP errors
+                    console.warn(`Security check skipped due to HTTP error: ${response.status}`);
+                    setStatus('safe');
+                    return;
+                }
+
                 const data = await response.json();
 
                 if (!data.success) {
-                    // If API fails, default to safe to prevent blocking legitimate users during API downtime
+                    // If API fails (e.g. rate limit), default to safe
                     setStatus('safe');
                     return;
                 }
@@ -54,39 +70,27 @@ const SecurityCheck: React.FC<SecurityCheckProps> = ({ children }) => {
                     return;
                 }
 
-                // 3. Timezone Mismatch Check (Optional heuristic)
-                // VPNs often have a timezone that differs significantly from the browser's local time
-                // We won't block solely on this to avoid false positives near borders, but it's good to know.
-
                 setStatus('safe');
 
             } catch (error) {
-                console.error("Security check failed:", error);
-                // Fail open (safe)
-                setStatus('safe');
+                // If network error, timeout, or blocked by adblocker, fail open
+                if (isMounted) {
+                    console.warn("Security check bypassed:", error);
+                    setStatus('safe');
+                }
+            } finally {
+                clearTimeout(timeoutId);
             }
         };
 
-        // Delay slightly to ensure smooth UI transition if it's instant
-        setTimeout(checkSecurity, 500);
+        checkSecurity();
+
+        return () => {
+            isMounted = false;
+        };
     }, []);
 
-    if (status === 'loading') {
-        return (
-            <div className="fixed inset-0 bg-[#2d3436] flex flex-col items-center justify-center z-[9999]">
-                <div className="relative w-24 h-24 mb-8">
-                    <div className="absolute inset-0 border-4 border-blue-500/30 rounded-full animate-ping"></div>
-                    <div className="absolute inset-0 border-4 border-t-blue-500 rounded-full animate-spin"></div>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <i className="fa-solid fa-shield-halved text-3xl text-blue-500"></i>
-                    </div>
-                </div>
-                <h2 className="text-white font-bold text-xl tracking-wider mb-2">SECURITY CHECK</h2>
-                <p className="text-gray-400 font-mono text-sm animate-pulse">Scanning network environment...</p>
-            </div>
-        );
-    }
-
+    // If a threat is detected, show the blocking screen
     if (status === 'detected') {
         return (
             <div className="fixed inset-0 bg-[#f8f9fa] z-[9999] flex flex-col items-center justify-center p-6 text-center font-sans">
@@ -126,6 +130,8 @@ const SecurityCheck: React.FC<SecurityCheckProps> = ({ children }) => {
         );
     }
 
+    // In 'loading' or 'safe' state, render children immediately.
+    // This allows the SplashScreen (in App.tsx) to be visible while this runs in the background.
     return <>{children}</>;
 };
 

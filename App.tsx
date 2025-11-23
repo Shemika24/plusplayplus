@@ -34,7 +34,7 @@ const App: React.FC = () => {
 
     const timer = setTimeout(() => {
       setIsSplashTimeOver(true);
-    }, 6000);
+    }, 2500); // Reduced from 6000ms to 2500ms for better UX
 
     return () => clearTimeout(timer);
   }, []);

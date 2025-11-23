@@ -27,7 +27,7 @@ const rewardTiers: RewardTier[] = [
     { reward: 300, invites: 20000, days: 365 },
 ];
 
-const POINTS_PER_DOLLAR = 142857;
+const POINTS_PER_DOLLAR = 100000;
 
 const CircularProgress: React.FC<{ progress: number }> = ({ progress }) => {
     const radius = 55; // Increased from 45 for a larger circle

@@ -220,9 +220,6 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
     return (
         <div className="flex flex-col h-full bg-[var(--gray-light)]">
             <div className="p-4 border-b border-[var(--border-color)] bg-[var(--bg-card)] sticky top-0 z-10 flex items-center">
-                <button onClick={onBack} className="mr-3 text-[var(--gray)] hover:text-[var(--dark)] transition-colors">
-                    <i className="fa-solid fa-arrow-left text-lg"></i>
-                </button>
                 <h1 className="text-lg font-bold text-[var(--dark)]">
                     Withdraw Funds
                 </h1>
@@ -296,7 +293,6 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
                                         <i className="fa-solid fa-triangle-exclamation text-yellow-600 dark:text-yellow-300 text-xl"></i>
                                     </div>
                                     <h4 className="font-bold text-yellow-800 dark:text-yellow-200 mb-1">No Payment Methods</h4>
-                                    <p className="text-sm text-yellow-700 dark:text-yellow-300">Please go to Profile > Settings > Payment Methods to add one.</p>
                                 </div>
                             )}
                         </div>

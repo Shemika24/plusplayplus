@@ -27,7 +27,7 @@ interface HomeScreenProps {
   onProfileUpdate: (data: Partial<UserProfile>) => void;
 }
 
-const POINTS_PER_DOLLAR = 142857;
+const POINTS_PER_DOLLAR = 100000;
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, onLogout, onProfileUpdate }) => {
   const [activeTab, setActiveTab] = useState<Screen>('Home');

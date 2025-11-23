@@ -8,7 +8,7 @@ interface WalletScreenProps {
     onHistoryClick: () => void;
 }
 
-const POINTS_PER_DOLLAR = 142857;
+const POINTS_PER_DOLLAR = 100000;
 
 const WalletScreen: React.FC<WalletScreenProps> = ({ userProfile, onWithdrawClick, onHistoryClick }) => {
     const balance = userProfile.points / POINTS_PER_DOLLAR;

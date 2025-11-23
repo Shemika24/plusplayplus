@@ -135,6 +135,7 @@ const BreakTimer: React.FC<{ endTime: Date; onBreakEnd: () => void }> = ({ endTi
 const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, userProfile }) => {
     const [dailyState, setDailyState] = useState<DailyTaskState | null>(null);
     const [isLoadingState, setIsLoadingState] = useState(true);
+    const [fetchError, setFetchError] = useState(false);
     const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
     const [successInfo, setSuccessInfo] = useState<{ points: number } | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -142,6 +143,7 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
     
     const fetchAndProcessTasks = useCallback(async () => {
         setIsLoadingState(true);
+        setFetchError(false);
         try {
             const state = await getDailyTaskState(userProfile.uid);
             setDailyState(state);
@@ -151,6 +153,7 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
             }
         } catch (error) {
             console.error("Failed to fetch task state:", error);
+            setFetchError(true);
         } finally {
             setIsLoadingState(false);
         }
@@ -243,8 +246,8 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
         const isInterstitial = task.categoryIcon.includes('fa-rectangle-ad');
         const type = isInterstitial ? 'Interstitial' : 'Pop';
         
-        // Enforce strictly 16s for Interstitial and 20s for Pop as requested
-        const duration = isInterstitial ? 16 : 20;
+        // Enforce strictly 15s for Interstitial and 20s for Pop as requested
+        const duration = isInterstitial ? 15 : 20;
         
         showTaskAd(task.id, task.points, duration, type);
     }, [activeTaskId, isAdActive, isAdLoading, showTaskAd]);
@@ -286,6 +289,26 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
             return (
                 <div className="space-y-3">
                     {Array.from({ length: 5 }).map((_, i) => <SkeletonTaskItemCard key={i} />)}
+                </div>
+            );
+        }
+
+        if (fetchError) {
+             return (
+                <div className="text-center p-8 bg-[var(--bg-card)] rounded-xl shadow-lg border border-red-200">
+                    <div className="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-4">
+                        <i className="fa-solid fa-wifi text-red-500 text-2xl"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-[var(--dark)]">Connection Issue</h3>
+                    <p className="text-[var(--gray)] mt-2 mb-4">
+                        We couldn't load your tasks. Please check your internet connection.
+                    </p>
+                    <button 
+                        onClick={fetchAndProcessTasks}
+                        className="px-8 py-3 bg-[var(--primary)] text-white font-bold rounded-xl shadow-md hover:bg-[var(--primary-dark)] transition-colors"
+                    >
+                        Try Again
+                    </button>
                 </div>
             );
         }
@@ -388,7 +411,7 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
                                         setIsAutoMode(!isAutoMode);
                                     }
                                 }}
-                                disabled={!dailyState || dailyState.tasks.length === 0 || dailyState.isOnBreak}
+                                disabled={!dailyState || dailyState.tasks.length === 0 || dailyState.isOnBreak || fetchError}
                                 className={`w-10 h-5 rounded-full relative transition-all duration-300 ${isAutoMode ? 'bg-green-500' : 'bg-gray-300'} disabled:opacity-50`}
                             >
                                 <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all shadow-sm ${isAutoMode ? 'left-6' : 'left-1'}`}></div>

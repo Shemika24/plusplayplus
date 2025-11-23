@@ -44,22 +44,22 @@ interface UserDailyState {
     breakEndTime: Timestamp | null;
 }
 
-const POINTS_PER_DOLLAR = 142857;
+const POINTS_PER_DOLLAR = 100000;
 
 // --- MOCK DATA GENERATION ---
 
 const generateTasks = (count: number, idStartIndex: number, type: 'Interstitial' | 'Pop'): Task[] => {
     const getPoints = (taskType: 'Interstitial' | 'Pop'): number => {
-        const pointsOptions = [50, 75, 100];
+        const pointsOptions = [75, 100];
         const randomIndex = Math.floor(Math.random() * pointsOptions.length);
         return pointsOptions[randomIndex];
     };
 
     const getDuration = (taskType: 'Interstitial' | 'Pop'): number => {
         if (taskType === 'Interstitial') {
-            return 16; // Max 16s
+            return 15; // Set to 15s
         } else { // Pop Ad
-            return 20; // Max 20s
+            return 20; // Set to 20s
         }
     };
 
@@ -492,7 +492,6 @@ export const deleteUserData = async (uid: string): Promise<void> => {
     }
 };
 
-
 // ===================================================================================
 // PAGINATED HISTORY FUNCTIONS
 // ===================================================================================
@@ -650,15 +649,15 @@ export const getDailyTaskState = async (uid: string) => {
         let dataModified = false;
         const sanitizeTask = (t: UiTask) => {
             const isInterstitial = t.categoryIcon.includes('fa-rectangle-ad');
-            const targetDuration = isInterstitial ? 16 : 20;
+            const targetDuration = isInterstitial ? 15 : 20; // 15s for Inters, 20s for Pop
             
             if (t.duration !== targetDuration) {
                 t.duration = targetDuration;
                 dataModified = true;
             }
             
-            // Migrate points to be 50, 75, or 100 if they aren't already
-            const validPoints = [50, 75, 100];
+            // Migrate points to be 75 or 100 if they aren't already (e.g., if they are 50)
+            const validPoints = [75, 100];
             if (!validPoints.includes(t.points)) {
                 const randomIndex = Math.floor(Math.random() * validPoints.length);
                 t.points = validPoints[randomIndex];
