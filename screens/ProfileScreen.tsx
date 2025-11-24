@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { UserProfile, NotificationPreferences, PrivacySettings, PaymentDetails } from '../types';
 import { updateUserProfile, deleteUserData } from '../services/firestoreService';
-import { deleteCurrentUser, changeUserPassword } from '../services/authService';
+import { deleteCurrentUser, changeUserPassword, reauthenticateUser } from '../services/authService';
 import Modal from '../components/Modal';
 import InfoModal from '../components/modals/InfoModal';
 import NotificationSettingsModal from '../components/modals/NotificationSettingsModal';
@@ -276,24 +276,20 @@ const ChangePasswordModal: React.FC<{ isOpen: boolean; onClose: () => void }> = 
 interface DeleteConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => Promise<void>;
+  onConfirm: (password: string) => Promise<void>;
 }
 
-const CONFIRMATION_TEXT = 'delete_my_account';
-
 const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ isOpen, onClose, onConfirm }) => {
-  const [inputText, setInputText] = useState('');
+  const [password, setPassword] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState('');
 
-  const isConfirmed = inputText === CONFIRMATION_TEXT;
-
   const handleDelete = async () => {
-    if (!isConfirmed) return;
+    if (!password) return;
     setIsDeleting(true);
     setError('');
     try {
-      await onConfirm();
+      await onConfirm(password);
       // On success, the app will log out and navigate away.
     } catch (e: any) {
       setError(e.message || 'An unexpected error occurred.');
@@ -303,7 +299,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ isOpe
 
   const handleClose = () => {
     if (isDeleting) return;
-    setInputText('');
+    setPassword('');
     setError('');
     setIsDeleting(false);
     onClose();
@@ -320,15 +316,15 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ isOpe
           This action is irreversible. All your data, including points and earnings history, will be permanently deleted.
         </p>
         <p className="text-[var(--gray)] mt-4">
-          To confirm, please type "<strong className="text-red-600">{CONFIRMATION_TEXT}</strong>" in the box below.
+          Please enter your password to confirm deletion.
         </p>
 
         <input
-          type="text"
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
           className="mt-4 w-full p-3 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg focus:ring-2 focus:ring-[var(--error)] focus:outline-none transition text-center text-[var(--dark)]"
-          placeholder={CONFIRMATION_TEXT}
+          placeholder="Enter Password"
           disabled={isDeleting}
         />
 
@@ -337,7 +333,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ isOpe
         <div className="mt-6 flex flex-col sm:flex-row-reverse gap-3">
           <button
             onClick={handleDelete}
-            disabled={!isConfirmed || isDeleting}
+            disabled={!password || isDeleting}
             className="w-full font-bold py-3 rounded-xl shadow-lg transition-all bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {isDeleting ? <><i className="fa-solid fa-spinner fa-spin mr-2"></i>Deleting...</> : 'Delete My Account'}
@@ -628,9 +624,30 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
         setIsEditing(false);
     };
 
-    const handleDeleteAccount = async () => {
+    const handleDeleteAccount = async (password: string) => {
+        // 1. Verify password first to prevent partial deletion
+        await reauthenticateUser(password);
+        // 2. Delete database records
         await deleteUserData(userProfile.uid);
+        // 3. Delete authentication account
         await deleteCurrentUser();
+    };
+
+    const handleTelegramShare = () => {
+        const tg = window.Telegram?.WebApp;
+        const tgUser = tg?.initDataUnsafe?.user;
+
+        if (tg && tgUser) {
+            const botUsername = "plusplayplus_bot";
+            const referralLink = `https://t.me/${botUsername}?start=${tgUser.id}`;
+            const shareText = `🎉 Hello! I'm ${tgUser.first_name} and I'm using this amazing app! Use my link to get a special bonus: ${referralLink}`;
+            const url = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareText)}`;
+
+            tg.openTelegramLink(url);
+        } else {
+            // Fallback for web users
+            alert("This feature is optimized for Telegram. Please use the Referrals screen for standard sharing.");
+        }
     };
 
     const filteredCountries = ALL_COUNTRIES.filter(c =>
@@ -676,8 +693,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                     </button>
                 </div>
                 
+                {/* Removed username display, showing only Full Name from DB */}
                 <h2 className="text-2xl font-bold text-[var(--dark)] mt-4">{formData.fullName || 'User'}</h2>
-                <p className="text-sm text-[var(--gray)]">@{formData.username}</p>
             </div>
 
             <div className="p-4 md:p-6 space-y-6">
@@ -800,6 +817,17 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                             )}
                         </div>
                     </div>
+                </div>
+
+                {/* Share & Earn */}
+                <div className="bg-[var(--bg-card)] rounded-xl shadow-lg p-4 border border-[var(--border-color)]">
+                    <h3 className="font-bold text-lg text-[var(--dark)] mb-2 px-1">Share & Earn</h3>
+                    <SettingsRow 
+                        icon="fa-brands fa-telegram" 
+                        label="Invite Friends via Telegram" 
+                        onClick={handleTelegramShare}
+                        value="Get bonuses!" 
+                    />
                 </div>
 
                 {/* Settings */}

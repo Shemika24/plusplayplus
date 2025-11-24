@@ -1,5 +1,6 @@
 
 
+
 import { 
     createUserWithEmailAndPassword, 
     signInWithEmailAndPassword, 
@@ -13,7 +14,8 @@ import {
     User,
     updatePassword,
     reauthenticateWithCredential,
-    EmailAuthProvider
+    EmailAuthProvider,
+    updateProfile
 } from "firebase/auth";
 import { auth } from '../firebase';
 import { createUserProfileDocument } from './firestoreService';
@@ -31,6 +33,11 @@ export const signUpUser = async (
     try {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
+        
+        // Update the Auth Profile with the Display Name immediately.
+        // This prevents "email fallback" issues if the Firestore document is later regenerated.
+        await updateProfile(user, { displayName: name });
+
         await createUserProfileDocument(user, { 
             fullName: name,
             ...options
@@ -68,6 +75,22 @@ export const sendPasswordResetEmailHandler = async (email: string): Promise<void
         await sendPasswordResetEmail(auth, email);
     } catch (error: any) {
         throw new Error(error.message);
+    }
+};
+
+export const reauthenticateUser = async (password: string): Promise<void> => {
+    const user = auth.currentUser;
+    if (!user || !user.email) {
+        throw new Error("No user signed in.");
+    }
+    const credential = EmailAuthProvider.credential(user.email, password);
+    try {
+        await reauthenticateWithCredential(user, credential);
+    } catch (error: any) {
+         if (error.code === 'auth/wrong-password') {
+            throw new Error('Incorrect password.');
+        }
+        throw error;
     }
 };
 
@@ -109,7 +132,7 @@ export const deleteCurrentUser = async (): Promise<void> => {
     } catch (error: any) {
         console.error("Error deleting user account:", error);
         if (error.code === 'auth/requires-recent-login') {
-            throw new Error("This is a sensitive operation and requires you to have recently signed in. Please sign out and sign back in to delete your account.");
+            throw new Error("This is a sensitive operation and requires you to have recently signed in. Please enter your password to confirm.");
         }
         throw new Error("Could not delete your account. Please try again later.");
     }

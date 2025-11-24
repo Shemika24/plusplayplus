@@ -13,7 +13,7 @@ import {
     Timestamp, 
     increment, 
     serverTimestamp, 
-    runTransaction,
+    runTransaction, 
     writeBatch,
     startAfter,
     deleteDoc,
@@ -155,13 +155,18 @@ export const createUserProfileDocument = async (userAuth: User, additionalData: 
                     finalUsername = tgUser.username;
                 }
 
-                // 2. Avatar: Use Telegram photo if user didn't explicitly provide one during signup
+                // 2. Full Name: Force use of Telegram name if available
+                if (tgUser.first_name) {
+                    finalFullName = `${tgUser.first_name} ${tgUser.last_name || ''}`.trim();
+                }
+
+                // 3. Avatar: Use Telegram photo if user didn't explicitly provide one during signup
                 // (Note: `avatarUrl` from additionalData comes from the camera input in signup, which doesn't exist yet in the current flow)
                 if (!finalAvatarUrl && tgUser.photo_url) {
                     finalAvatarUrl = tgUser.photo_url;
                 }
                 
-                // 3. Device Info: Add Platform
+                // 4. Device Info: Add Platform
                 if (tg.platform) {
                     finalDeviceInfo = `${finalDeviceInfo} [Telegram: ${tg.platform} v${tg.version}]`;
                 }
@@ -245,6 +250,38 @@ export const getUserProfile = async (user: User): Promise<UserProfile | null> =>
         const data = userDocSnap.data() as any; // Use any for migration
         let needsUpdate = false;
 
+        // --- FIX: DATA RECOVERY / CORRECTION LOGIC ---
+        // If the existing fullName is just the email prefix (bad data) or generic "User", try to fix it.
+        const emailPrefix = user.email ? user.email.split('@')[0] : '';
+        const currentName = data.fullName || '';
+        const isNameCorrupted = currentName === emailPrefix || currentName === 'User' || !currentName;
+
+        if (isNameCorrupted) {
+            let betterName = '';
+
+            // 1. Prioritize Telegram Name if available
+            if (typeof window !== 'undefined' && window.Telegram?.WebApp?.initDataUnsafe?.user) {
+                const tg = window.Telegram.WebApp.initDataUnsafe.user;
+                if (tg.first_name) {
+                    betterName = `${tg.first_name} ${tg.last_name || ''}`.trim();
+                }
+            }
+
+            // 2. Fallback to Auth Display Name if it exists and is not the email prefix
+            if (!betterName && user.displayName && user.displayName !== emailPrefix) {
+                betterName = user.displayName;
+            }
+
+            // 3. Apply the fix
+            if (betterName && betterName !== currentName) {
+                data.fullName = betterName;
+                // Schedule update to DB
+                updateDoc(userDocRef, { fullName: betterName }).catch(e => console.error("Auto-correction of name failed:", e));
+                // We modify 'data' in place so the UI gets the correct name immediately
+            }
+        }
+        // ---------------------------------------------
+
         // Theme Migration
         if (!data.theme) {
             data.theme = 'light';
@@ -305,7 +342,7 @@ export const getUserProfile = async (user: User): Promise<UserProfile | null> =>
             needsUpdate = true;
         }
 
-        // Migration from firstName/lastName to fullName
+        // Migration from firstName/lastName to fullName (Legacy check)
         if (!data.fullName && (data.firstName || data.lastName)) {
             data.fullName = `${data.firstName || ''} ${data.lastName || ''}`.trim();
             delete data.firstName;
@@ -343,7 +380,20 @@ export const getUserProfile = async (user: User): Promise<UserProfile | null> =>
     } else {
        console.warn(`No profile found for user ${user.uid}. Creating a fallback profile.`);
        try {
-            const fullName = user.displayName || user.email?.split('@')[0] || 'User';
+            let fullName = user.displayName;
+            
+            // 1. Prefer Telegram data if available in global scope
+            if (typeof window !== 'undefined' && window.Telegram?.WebApp?.initDataUnsafe?.user) {
+                const tgUser = window.Telegram.WebApp.initDataUnsafe.user;
+                const tgName = `${tgUser.first_name} ${tgUser.last_name || ''}`.trim();
+                if (tgName) fullName = tgName;
+            }
+
+            // 2. Only fallback to email prefix if absolutely no other name is found
+            if (!fullName) {
+                 fullName = user.email?.split('@')[0] || 'User';
+            }
+            
             await createUserProfileDocument(user, { fullName });
             
             const newDocSnap = await getDoc(userDocRef);
