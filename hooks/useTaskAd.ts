@@ -58,16 +58,24 @@ export const useTaskAd = ({ onReward, onError }: UseTaskAdOptions) => {
             const remainingSeconds = Math.ceil(remainingMs / 1000);
             
             if (remainingSeconds <= 0) {
-                // Success Logic
+                // Timer finished logic
                 if (countdownRef.current) clearInterval(countdownRef.current);
+                countdownRef.current = null;
                 setTimeLeft(0);
                 
-                clearAllTimers();
-                setIsAdActive(false);
-                isAdActiveRef.current = false;
-                currentTaskIdRef.current = null;
-                
-                onReward({ taskId, points });
+                // UX Improvement: Wait 1 second showing "0" before completing
+                // This prevents the "sound before time finishes" feeling
+                setTimeout(() => {
+                    // Check if still active (user didn't cancel during the delay)
+                    if (isAdActiveRef.current) {
+                        setIsAdActive(false);
+                        isAdActiveRef.current = false;
+                        currentTaskIdRef.current = null;
+                        
+                        onReward({ taskId, points });
+                    }
+                }, 1000);
+
             } else {
                 setTimeLeft(remainingSeconds);
             }
