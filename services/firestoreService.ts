@@ -130,7 +130,11 @@ interface CreateProfileOptions {
     avatarUrl?: string;
 }
 
-export const createUserProfileDocument = async (userAuth: User, additionalData: CreateProfileOptions): Promise<void> => {
+export const createUserProfileDocument = async (
+    userAuth: User, 
+    additionalData: CreateProfileOptions,
+    referrerUid?: string
+): Promise<void> => {
     const userDocRef = doc(db, "users", userAuth.uid);
     const userDocSnap = await getDoc(userDocRef);
 
@@ -142,6 +146,7 @@ export const createUserProfileDocument = async (userAuth: User, additionalData: 
         let finalAvatarUrl = avatarUrl || "";
         let finalDeviceInfo = navigator.userAgent;
         let finalFullName = fullName;
+        let finalTelegramId = "";
 
         // --- TELEGRAM DATA INTEGRATION ---
         // If app is running in Telegram, use available data to populate profile
@@ -161,7 +166,6 @@ export const createUserProfileDocument = async (userAuth: User, additionalData: 
                 }
 
                 // 3. Avatar: Use Telegram photo if user didn't explicitly provide one during signup
-                // (Note: `avatarUrl` from additionalData comes from the camera input in signup, which doesn't exist yet in the current flow)
                 if (!finalAvatarUrl && tgUser.photo_url) {
                     finalAvatarUrl = tgUser.photo_url;
                 }
@@ -170,12 +174,36 @@ export const createUserProfileDocument = async (userAuth: User, additionalData: 
                 if (tg.platform) {
                     finalDeviceInfo = `${finalDeviceInfo} [Telegram: ${tg.platform} v${tg.version}]`;
                 }
+
+                // 5. Telegram ID (Crucial for multi-account on same device support)
+                finalTelegramId = tgUser.id.toString();
             }
         }
         // ---------------------------------
         
         const refCode = uid;
         const referralLink = `${window.location.origin}?ref=${refCode}`;
+        
+        // --- REFERRAL LOGIC ---
+        // Rules:
+        // 1. New User gets $0.50 (50,000 points)
+        // 2. Referrer gets $0.10 (10,000 points) + Referral Count Increment
+        
+        let initialPoints = 0;
+        let validReferrerId: string | undefined = undefined;
+        const REFERRAL_BONUS_POINTS = 10000; // $0.10 for referrer
+        const NEW_USER_BONUS_POINTS = 50000; // $0.50 for new user
+
+        // Check if a referrer exists and is valid
+        if (referrerUid && referrerUid !== uid) {
+            const referrerDocRef = doc(db, "users", referrerUid);
+            const referrerSnap = await getDoc(referrerDocRef);
+            
+            if (referrerSnap.exists()) {
+                validReferrerId = referrerUid;
+                initialPoints = NEW_USER_BONUS_POINTS; // Apply bonus to new user
+            }
+        }
 
         const newProfile: UserProfile = {
             uid,
@@ -183,7 +211,7 @@ export const createUserProfileDocument = async (userAuth: User, additionalData: 
             fullName: finalFullName,
             username: finalUsername,
             dyverzeId: generateDyverzeId(),
-            points: 0,
+            points: initialPoints,
             theme: 'light',
             avatarUrl: finalAvatarUrl,
             bio: "",
@@ -191,7 +219,9 @@ export const createUserProfileDocument = async (userAuth: User, additionalData: 
             address: "",
             phone: "",
             lastPhoneUpdate: null,
-            deviceInfo: finalDeviceInfo, 
+            deviceInfo: finalDeviceInfo,
+            telegramId: finalTelegramId, // Store telegram ID
+            referredBy: validReferrerId, 
             notificationPreferences: {
                 withdrawals: true,
                 dailyCheckIn: true,
@@ -232,7 +262,62 @@ export const createUserProfileDocument = async (userAuth: User, additionalData: 
                 redeemedCount: 0,
             },
         };
-        await setDoc(userDocRef, newProfile);
+        
+        const batch = writeBatch(db);
+        
+        // 1. Create New User
+        batch.set(userDocRef, newProfile);
+        
+        // 2. Update Referrer if valid
+        if (validReferrerId) {
+            const referrerDocRef = doc(db, "users", validReferrerId);
+            
+            // Update Referrer Stats
+            batch.update(referrerDocRef, {
+                points: increment(REFERRAL_BONUS_POINTS),
+                'referrals.count': increment(1),
+                'referrals.activeCount': increment(1),
+                'referrals.directEarnings': increment(REFERRAL_BONUS_POINTS / POINTS_PER_DOLLAR)
+            });
+
+            // Add Notification to Referrer (Optional, but good for UX)
+            const notificationRef = doc(collection(db, "users", validReferrerId, "notifications"));
+            batch.set(notificationRef, {
+                icon: 'fa-solid fa-user-plus',
+                iconColor: 'text-orange-500',
+                title: 'New Referral Bonus!',
+                description: `You earned $${(REFERRAL_BONUS_POINTS / POINTS_PER_DOLLAR).toFixed(2)} because ${finalFullName} joined!`,
+                date: new Date().toLocaleString("en-US", { timeZone: "America/New_York" }),
+                timestamp: serverTimestamp(),
+                isRead: false
+            });
+            
+            // Add Task History entry for Referrer so they see the earnings there too
+            const historyRef = doc(collection(db, "users", validReferrerId, "taskHistory"));
+            batch.set(historyRef, {
+                title: `Referral Bonus: ${finalFullName}`,
+                reward: REFERRAL_BONUS_POINTS,
+                icon: 'fa-solid fa-user-plus',
+                iconColor: 'text-orange-500',
+                date: new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" }),
+                timestamp: serverTimestamp()
+            });
+        }
+        
+        // 3. Add Welcome/Bonus History for New User
+        if (initialPoints > 0) {
+            const newUserHistoryRef = doc(collection(db, "users", uid, "taskHistory"));
+             batch.set(newUserHistoryRef, {
+                title: "Welcome Bonus (Referral)",
+                reward: initialPoints,
+                icon: 'fa-solid fa-gift',
+                iconColor: 'text-pink-500',
+                date: new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" }),
+                timestamp: serverTimestamp()
+            });
+        }
+        
+        await batch.commit();
     }
 };
 
@@ -242,7 +327,7 @@ export const updateUserProfile = async (uid: string, data: Partial<UserProfile>)
     await updateDoc(userDocRef, data);
 };
 
-export const getUserProfile = async (user: User): Promise<UserProfile | null> => {
+export const getUserProfile = async (user: User, referrerUid?: string): Promise<UserProfile | null> => {
     const userDocRef = doc(db, "users", user.uid);
     let userDocSnap = await getDoc(userDocRef);
 
@@ -394,7 +479,8 @@ export const getUserProfile = async (user: User): Promise<UserProfile | null> =>
                  fullName = user.email?.split('@')[0] || 'User';
             }
             
-            await createUserProfileDocument(user, { fullName });
+            // Pass referrerUid to creation logic
+            await createUserProfileDocument(user, { fullName }, referrerUid);
             
             const newDocSnap = await getDoc(userDocRef);
             if (newDocSnap.exists()) {

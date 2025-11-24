@@ -259,17 +259,11 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
         if (isAutoMode && activeTaskId === null && !isAdActive && !errorMessage && dailyState && dailyState.tasks.length > 0) {
             
             // Wait a moment for the success modal to be visible, then start next
+            // Reduced delay to 500ms as requested (effectively removing the 5s wait)
             const autoTimer = setTimeout(() => {
                 if (dailyState.tasks.length > 0) {
-                    // FILTER: Only execute Pop Ads (Exclude Interstitial 'fa-rectangle-ad')
-                    const nextPopTask = dailyState.tasks.find(t => !t.categoryIcon.includes('fa-rectangle-ad'));
-                    
-                    if (nextPopTask) {
-                        handleStartTask(nextPopTask);
-                    } else {
-                        // No Pop Ads available (only Interstitials left), stop Auto Mode
-                        setIsAutoMode(false);
-                    }
+                    const nextTask = dailyState.tasks[0]; // Always take the top task
+                    handleStartTask(nextTask);
                 } else {
                     setIsAutoMode(false); // No more tasks
                 }

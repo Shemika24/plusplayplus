@@ -25,11 +25,19 @@ const App: React.FC = () => {
   useEffect(() => {
     const initApp = async () => {
         // --- Telegram Integration Start ---
+        let startParam: string | undefined = undefined;
+
         if (window.Telegram && window.Telegram.WebApp) {
             const tg = window.Telegram.WebApp;
             try {
                 tg.ready();
                 tg.expand();
+                
+                // Capture Referral Param
+                if (tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
+                    startParam = tg.initDataUnsafe.start_param;
+                    console.log("Ref code found:", startParam);
+                }
                 
                 // Security & Validation Check
                 const { isAuthentic } = verifyTelegramData();
@@ -57,6 +65,17 @@ const App: React.FC = () => {
                 applyTheme('light'); 
             }
         }
+        
+        // Store startParam temporarily in window or local variable to be accessible by auth listener
+        // However, since auth listener runs independently, we handle it inside the listener if possible.
+        // NOTE: State update here won't be instant for the auth listener.
+        // We will trust that the auth listener below will grab this param if needed, 
+        // OR we modify the listener to use this captured param. 
+        // A cleaner way is to store it in a ref or module-level variable if the listener is defined outside.
+        // But since listener is inside component, we can use a ref.
+        if (startParam) {
+             window.sessionStorage.setItem('telegram_ref_code', startParam);
+        }
     };
     initApp();
 
@@ -75,12 +94,18 @@ const App: React.FC = () => {
       if (user) {
         setCurrentUser(user);
         
+        // Retrieve referral code captured during init
+        const refCode = window.sessionStorage.getItem('telegram_ref_code') || undefined;
+
         // Initial check to ensure profile exists
         try {
-            const profileCheck = await getUserProfile(user);
+            // Pass refCode to getUserProfile. It will handle passing it to createUserProfileDocument if needed.
+            const profileCheck = await getUserProfile(user, refCode);
+            
             if (!profileCheck) {
                 // Fallback creation handled in getUserProfile, but double check here
-                await createUserProfileDocument(user, { fullName: user.displayName || 'User' });
+                // If getUserProfile returned null (error), force create with refCode
+                await createUserProfileDocument(user, { fullName: user.displayName || 'User' }, refCode);
             }
         } catch (e) {
             console.error("Profile init check failed", e);
@@ -91,6 +116,24 @@ const App: React.FC = () => {
         unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data() as UserProfile;
+                
+                // --- SECURITY CHECK: DEVICE SHARING / MULTI-ACCOUNT SUPPORT ---
+                // If we are in Telegram, ensure the current Firebase User matches the Telegram User.
+                // If not, it means a different Telegram user is opening the app on a device where
+                // another user was logged in. We must logout to allow the new user to auth.
+                if (window.Telegram?.WebApp?.initDataUnsafe?.user && data.telegramId) {
+                    const currentTgId = window.Telegram.WebApp.initDataUnsafe.user.id.toString();
+                    if (data.telegramId !== currentTgId) {
+                        console.warn("Telegram ID mismatch (Shared Device Detected). Logging out...");
+                        signOutUser().then(() => {
+                            // Reload to clear state and show AuthScreen for new user
+                            window.location.reload();
+                        });
+                        return;
+                    }
+                }
+                // -----------------------------------------------------------------
+
                 // Apply theme if changed from another device
                 if (data.theme) applyTheme(data.theme);
                 setUserProfile(data);

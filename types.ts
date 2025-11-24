@@ -99,6 +99,7 @@ export interface UserProfile {
     dyverzeId: string;
     points: number;
     theme?: string; // 'light' | 'dark'
+    telegramId?: string; // Added for Telegram Integration Check
     
     // User Info
     fullName: string;
@@ -122,6 +123,7 @@ export interface UserProfile {
 
     // Referral Info
     referralLink: string;
+    referredBy?: string; // ID of the user who referred this user
     referrals: {
         count: number;
         activeCount: number;
