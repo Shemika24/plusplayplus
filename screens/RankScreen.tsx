@@ -57,7 +57,7 @@ const RankScreen: React.FC<RankScreenProps> = ({ currentUserProfile }) => {
     const others = rankings.slice(3);
 
     return (
-        <div className="pb-24 text-[var(--dark)] min-h-full bg-[var(--gray-light)]">
+        <div className="pb-32 text-[var(--dark)] min-h-full bg-[var(--gray-light)]">
             {/* Top 3 Podium */}
             <div className="bg-gradient-to-b from-[var(--primary)] to-[var(--primary-dark)] p-6 pt-10 rounded-b-3xl shadow-lg">
                 <h2 className="text-2xl font-bold text-white text-center mb-6">Top Earners</h2>

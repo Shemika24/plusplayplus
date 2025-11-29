@@ -225,7 +225,7 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
                 </h1>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-32 space-y-6">
                 {isOnCooldown ? (
                     <div className="flex flex-col items-center justify-center text-center h-full p-6 bg-[var(--bg-card)] rounded-xl shadow-lg border border-[var(--border-color)]">
                         <i className="fa-solid fa-clock-rotate-left text-5xl text-blue-500 mb-6"></i>

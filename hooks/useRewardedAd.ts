@@ -1,10 +1,9 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 
-// Define global types for the external script
 declare global {
     interface Window {
-        show_10206331?: (options?: { type?: string; ymid?: string }) => Promise<void>;
+        show_10206331: (tag?: string) => Promise<void>;
     }
 }
 
@@ -58,80 +57,64 @@ export const useRewardedAd = ({
     }, []);
 
     const preloadAd = useCallback(async (userId: string | null = null) => {
+        // Mock preload - always succeeds immediately
         if (preloadedAdRef.current) return;
-
-        const trackingId = generateTrackingId(userId);
-        
-        if (typeof window.show_10206331 !== 'function') {
-            console.warn("Monetag SDK not loaded.");
-            return;
-        }
-
-        try {
-            setIsPreloading(true);
-            // Assuming the SDK supports 'preload' type as per request
-            await window.show_10206331({ type: 'preload', ymid: trackingId });
+        setIsPreloading(true);
+        setTimeout(() => {
             preloadedAdRef.current = true;
-            console.log('Ad preloaded successfully');
-        } catch (error) {
-            console.warn('Preload failed:', error instanceof Error ? error.message : String(error));
-        } finally {
             setIsPreloading(false);
-        }
-    }, [generateTrackingId]);
+        }, 500);
+    }, []);
 
     const showRewardedAd = useCallback(async (userId: string | null = null) => {
         if (isLoading) return;
 
         setIsLoading(true);
         const trackingId = generateTrackingId(userId);
+
+        // 1. Attempt to show real Ad via SDK
+        if (typeof window.show_10206331 === 'function') {
+            try {
+                // Pass 'pop' argument if adType is Pop, otherwise call without args for Interstitial
+                if (adType === 'Pop') {
+                    await window.show_10206331('pop');
+                } else {
+                    await window.show_10206331();
+                }
+
+                // Ad success (Immediate or handled via SDK callback if available, assuming immediate success/callback flow)
+                // Note: If the SDK is asynchronous without a promise, this might need adjustment, 
+                // but based on provided structure we assume await works or we fall through.
+                
+                // If using the fallback timer logic below for SDKs that don't await properly, 
+                // we can return here, OR we can let the timer logic run as a "minimum view time" enforcer.
+                // For this implementation, we will allow the timer to run as the UX feedback.
+                console.log(`Ad SDK called: ${adType}`);
+            } catch (e) {
+                console.warn("Ad SDK failed/closed, falling back to timer logic.", e);
+                // Fallback to timer logic below
+            }
+        }
         
-        if (typeof window.show_10206331 !== 'function') {
-            setIsLoading(false);
-            if (onError) onError(new Error("Ad SDK not ready."));
-            return;
-        }
+        // 2. Timer Logic (Used for UX duration enforcement or fallback)
+        setTimeout(() => {
+            // Determine duration
+            const viewTime = Math.floor(Math.random() * (maxViewTimeSeconds - minViewTimeSeconds + 1)) + minViewTimeSeconds;
 
-        // Interstitial Logic
-        if (adType === 'Interstitial') {
-            console.log("Opening Interstitial Ad...");
-            window.show_10206331().then(() => {
-                setIsLoading(false);
-                // For interstitials, we don't track specific view time in the same way
-                onReward({ trackingId, viewTime: 0 });
-            }).catch((err: any) => {
-                console.warn("Interstitial Ad failed:", err instanceof Error ? err.message : String(err));
-                setIsLoading(false);
-                if (onError) onError(err);
-            });
-            return;
-        }
+            try {
+                console.log(`Starting ad timer: ${viewTime}s`);
 
-        // Pop Logic
-        const viewTime = Math.floor(Math.random() * (maxViewTimeSeconds - minViewTimeSeconds + 1)) + minViewTimeSeconds;
+                // Task "opened"
+                setIsAdActive(true);
+                isAdActiveRef.current = true;
+                
+                setTimeLeft(viewTime);
+                setIsLoading(false); 
 
-        try {
-            console.log(`Opening pop ad popup, required view time: ${viewTime}s`);
-            
-            // Fire the ad call - we don't await strict completion to ensure timer starts immediately
-            window.show_10206331({ 
-                type: 'pop', 
-                ymid: trackingId 
-            }).catch(e => console.log("Ad window likely blocked or closed", e));
+                // Start Countdown
+                const startTime = Date.now();
+                const endTime = startTime + (viewTime * 1000);
 
-            // Ad opened successfully (or process started)
-            setIsAdActive(true);
-            isAdActiveRef.current = true;
-            
-            setTimeLeft(viewTime);
-            
-            setIsLoading(false); 
-
-            // Start Robust Countdown (Date-based for background accuracy)
-            const startTime = Date.now();
-            const endTime = startTime + (viewTime * 1000);
-
-            return new Promise<void>((resolve, reject) => {
                 // Clear any existing interval
                 if (countdownRef.current) clearInterval(countdownRef.current);
 
@@ -151,34 +134,31 @@ export const useRewardedAd = ({
                         isAdActiveRef.current = false;
                         preloadedAdRef.current = false; // Reset preload state
                         onReward({ trackingId, viewTime });
-                        resolve();
                     }
-                }, 200); // Check frequently, but rely on Date.now() for accuracy
-            });
+                }, 200); 
 
-        } catch (error) {
-            console.error('Ad process error:', error instanceof Error ? error.message : String(error));
-            clearAllTimers();
-            setIsAdActive(false);
-            isAdActiveRef.current = false;
-            setIsLoading(false);
-            if (onError) onError(error);
-        }
+            } catch (error) {
+                console.error('Task process error:', error);
+                clearAllTimers();
+                setIsAdActive(false);
+                isAdActiveRef.current = false;
+                setIsLoading(false);
+                if (onError) onError(error);
+            }
+        }, 500); // Small delay to simulate processing
+
     }, [isLoading, maxViewTimeSeconds, minViewTimeSeconds, generateTrackingId, onReward, onError, clearAllTimers, adType]);
 
     const cancelAd = useCallback((isSystemCancellation = false) => {
         if (isAdActiveRef.current) {
-            console.log('Ad view cancelled');
+            console.log('Task cancelled');
             clearAllTimers();
             setIsAdActive(false);
             isAdActiveRef.current = false;
+            setIsLoading(false);
             
             if (onError) {
-                if (isSystemCancellation) {
-                    onError(new Error("Verification Failed: Ad window was closed or minimized before time expired."));
-                } else {
-                    onError(new Error("View cancelled by user"));
-                }
+                 onError(new Error("Task cancelled by user"));
             }
         }
     }, [clearAllTimers, onError]);

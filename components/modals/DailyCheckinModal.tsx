@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { playSound, vibrate, SOUNDS } from '../../utils/sound';
 import { UserProfile } from '../../types';
 import { claimDailyCheckIn } from '../../services/firestoreService';
+import { useRewardedAd } from '../../hooks/useRewardedAd';
 
 interface DailyCheckinModalProps {
     onClose: () => void;
@@ -23,135 +24,95 @@ const DAYS_CONFIG = [
 const DailyCheckinModal: React.FC<DailyCheckinModalProps> = ({ onClose, onEarnPoints, userProfile }) => {
     // --- State ---
     const [days, setDays] = useState(DAYS_CONFIG.map(d => ({ ...d, status: 'future' })));
-    const [isClaiming, setIsClaiming] = useState(false);
-    const [countdown, setCountdown] = useState(0);
     const [showSuccess, setShowSuccess] = useState(false);
     const [wonAmount, setWonAmount] = useState(0);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-    // Strict Lock Ref (Updates synchronously)
-    const isClaimingRef = useRef(false);
-    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const [pendingDayIndex, setPendingDayIndex] = useState<number | null>(null);
 
     // --- Date & Status Logic ---
     const getTodayStr = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const getYesterdayStr = () => {
+        const d = new Date();
+        d.setDate(d.getDate() - 1);
+        return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    };
 
     useEffect(() => {
         if (!userProfile) return;
 
         const todayStr = getTodayStr();
+        const yesterdayStr = getYesterdayStr();
         const lastDate = userProfile.dailyCheckIn?.lastDate || "";
-        const rawStreak = userProfile.dailyCheckIn?.streak || 0;
+        let rawStreak = userProfile.dailyCheckIn?.streak || 0;
         const isAlreadyClaimed = lastDate === todayStr;
 
+        // Visual Reset Check: If last check-in was NOT yesterday and NOT today, 
+        // the streak is effectively broken for visual purposes (it will reset to 1 on claim).
+        // So we should treat rawStreak as 0 for the UI rendering.
+        if (lastDate && lastDate !== yesterdayStr && lastDate !== todayStr) {
+            rawStreak = 0;
+        }
+
         // Calculate the start of the current 7-day cycle.
-        // If we claimed today (isAlreadyClaimed), we act as if we are still in the cycle of the claim we just made (streak - 1).
-        // If we haven't claimed, we use the current streak to see where we are.
         const cycleBase = Math.floor((rawStreak - (isAlreadyClaimed ? 1 : 0)) / 7) * 7;
 
         setDays(DAYS_CONFIG.map((d, index) => {
-            // The absolute day number for this specific card in the sequence (e.g., Day 8, Day 9...)
             const dayAbsoluteNumber = cycleBase + index + 1;
 
-            // LOGIC:
-            // 1. If the absolute day number is <= the user's total streak, it is CLAIMED.
             if (dayAbsoluteNumber <= rawStreak) {
                 return { ...d, status: 'claimed' };
             }
             
-            // 2. If the absolute day number is exactly (streak + 1), AND we haven't claimed today, it is CURRENT.
             if (dayAbsoluteNumber === rawStreak + 1 && !isAlreadyClaimed) {
                 return { ...d, status: 'current' };
             }
 
-            // 3. Otherwise, it is in the FUTURE.
             return { ...d, status: 'future' };
         }));
 
-        // If claimed today, lock ref immediately just in case
-        if (isAlreadyClaimed) {
-            isClaimingRef.current = true;
-        } else {
-            isClaimingRef.current = false;
-        }
-
     }, [userProfile]);
 
-    // --- Cleanup ---
-    useEffect(() => {
-        return () => {
-            if (timerRef.current) clearInterval(timerRef.current);
-        };
-    }, []);
-
-    // --- Handlers ---
-    const handleStartClaim = (dayIndex: number) => {
-        // 1. Strict Checks
-        if (isClaimingRef.current || isClaiming) return;
-        const targetDay = days[dayIndex];
-        
-        // Only allow clicking if status is strictly 'current'
-        if (targetDay.status !== 'current') return;
-
-        // 2. Lock & Update UI
-        isClaimingRef.current = true;
-        setIsClaiming(true);
-        setCountdown(15);
-        setErrorMsg(null);
-
-        // 3. Load Ad (Fire & Forget)
-        try {
-             if ((window as any).show_10206331) (window as any).show_10206331();
-        } catch (e) {}
-
-        // 4. Start Timer
-        timerRef.current = setInterval(() => {
-            setCountdown(prev => {
-                if (prev <= 1) {
-                    if (timerRef.current) clearInterval(timerRef.current);
-                    executeClaim(dayIndex);
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-    };
-
-    const executeClaim = async (dayIndex: number) => {
+    // --- Ad Hook Implementation ---
+    const executeClaim = async () => {
         if (!userProfile) return;
 
-        const dayConfig = days[dayIndex];
-        let reward = dayConfig.reward;
-        
-        if (dayConfig.isSurprise) {
-            // Surprise values: 750, 1000, 1250, 1500, 2000, 2500
-            const possibleRewards = [750, 1000, 1250, 1500, 2000, 2500];
-            const randomIndex = Math.floor(Math.random() * possibleRewards.length);
-            reward = possibleRewards[randomIndex];
-        }
-
-        const todayStr = getTodayStr();
-        const newStreak = (userProfile.dailyCheckIn?.streak || 0) + 1;
-
         try {
-            await claimDailyCheckIn(userProfile.uid, reward, todayStr, newStreak);
+            // New signature: No longer passing streak/reward. Backend calculates reset.
+            const { reward } = await claimDailyCheckIn(userProfile.uid);
             
             // Success!
             handleSuccess(reward);
-
         } catch (err: any) {
             console.error(err);
-            // Handle Race Condition: If backend says "Already checked in", treat as visual success
             if (err.message && err.message.includes("Already checked in")) {
-                // Maybe they double clicked too fast or refreshed. Show success anyway to avoid confusion.
-                handleSuccess(reward); 
+                setErrorMsg("Already checked in today!");
             } else {
-                // Genuine Error
-                setIsClaiming(false);
-                isClaimingRef.current = false;
                 setErrorMsg("Connection error. Please try again.");
             }
         }
+    };
+
+    const { showRewardedAd, cancelAd, isAdActive, timeLeft, isLoading: isAdLoading } = useRewardedAd({
+        minViewTimeSeconds: 15, // Standard duration for Interstitial
+        maxViewTimeSeconds: 15,
+        adType: 'Interstitial', // This triggers show_10206331() without args
+        onReward: () => {
+             executeClaim();
+        },
+        onError: (err) => {
+            setErrorMsg("Ad failed. Please try again.");
+            setPendingDayIndex(null);
+        }
+    });
+
+    const handleStartClaim = (dayIndex: number) => {
+        const targetDay = days[dayIndex];
+        // Only allow clicking if status is strictly 'current'
+        if (targetDay.status !== 'current' || isAdActive || isAdLoading) return;
+
+        setPendingDayIndex(dayIndex);
+        setErrorMsg(null);
+        showRewardedAd();
     };
 
     const handleSuccess = (reward: number) => {
@@ -159,9 +120,9 @@ const DailyCheckinModal: React.FC<DailyCheckinModalProps> = ({ onClose, onEarnPo
         vibrate(200);
         setWonAmount(reward);
         setShowSuccess(true);
-        setIsClaiming(false); // Visual loading stop, but ref stays true via "Already Claimed" logic in effect next render
+        setPendingDayIndex(null);
         
-        // Notify Parent (Points are already in DB, just visual update)
+        // Notify Parent
         onEarnPoints(reward, 'Daily Check-in', 'fa-solid fa-calendar-check', 'text-green-500');
 
         setTimeout(() => {
@@ -171,18 +132,27 @@ const DailyCheckinModal: React.FC<DailyCheckinModalProps> = ({ onClose, onEarnPo
 
     return (
         <div className="p-3 relative select-none">
-             {/* BLOCKING OVERLAY for Timer */}
-             {isClaiming && !showSuccess && (
-                <div className="absolute inset-0 z-[60] bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center rounded-xl cursor-wait">
-                     <div className="relative w-16 h-16 flex items-center justify-center">
-                        <svg className="animate-spin w-full h-full text-[var(--primary)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+             {/* BLOCKING OVERLAY for Ad / Processing */}
+             {(isAdActive || isAdLoading) && (
+                 <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 animate-fadeIn select-none">
+                    <div className="w-20 h-20 mb-6 relative flex items-center justify-center">
+                        <svg className="animate-spin h-full w-full text-white/30" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        <span className="absolute text-sm font-bold text-[var(--dark)]">{countdown}s</span>
+                        {isAdActive && <span className="absolute font-bold text-2xl text-white">{timeLeft}</span>}
                     </div>
-                    <p className="text-xs font-semibold text-[var(--primary)] mt-3 animate-pulse">Claiming Reward...</p>
-                    <p className="text-[10px] text-gray-400 mt-1">Please do not close</p>
+                    
+                    <p className="text-white/90 font-medium text-lg animate-pulse">
+                        {isAdLoading ? "Loading Ad..." : "Verifying Check-in..."}
+                    </p>
+                    
+                    <button 
+                        onClick={() => cancelAd(false)}
+                        className="mt-12 px-6 py-2 rounded-full border border-white/20 text-white/60 hover:bg-white/10 hover:text-white transition-all text-sm"
+                    >
+                        Cancel
+                    </button>
                 </div>
              )}
 
@@ -213,7 +183,7 @@ const DailyCheckinModal: React.FC<DailyCheckinModalProps> = ({ onClose, onEarnPo
                     return (
                         <button
                             key={index}
-                            disabled={!isCurrent || isClaiming}
+                            disabled={!isCurrent || isAdActive || isAdLoading}
                             onClick={() => handleStartClaim(index)}
                             className={`
                                 relative aspect-square rounded-xl border-2 flex flex-col items-center justify-center p-1 transition-all duration-200

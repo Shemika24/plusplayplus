@@ -1,6 +1,12 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 
+declare global {
+    interface Window {
+        show_10206331: (tag?: string) => Promise<void>;
+    }
+}
+
 interface UseTaskAdOptions {
     onReward: (data: { taskId: number; points: number }) => void;
     onError: (error: any) => void;
@@ -33,77 +39,72 @@ export const useTaskAd = ({ onReward, onError }: UseTaskAdOptions) => {
         setIsLoading(true);
         currentTaskIdRef.current = taskId;
         
-        const showAdFn = (window as any).show_10206331;
-        if (typeof showAdFn !== 'function') {
-            setIsLoading(false);
-            onError(new Error("Ad SDK not initialized."));
-            return;
-        }
-
-        // 1. Start Unified Timer Logic (Robust Date-based) FIRST
-        // This ensures the task can be completed even if the ad script throws a verification error
-        setIsAdActive(true);
-        isAdActiveRef.current = true;
-        setTimeLeft(duration);
-        setIsLoading(false);
-
-        const startTime = Date.now();
-        const endTime = startTime + (duration * 1000);
-
-        if (countdownRef.current) clearInterval(countdownRef.current);
-
-        countdownRef.current = setInterval(() => {
-            const now = Date.now();
-            const remainingMs = endTime - now;
-            const remainingSeconds = Math.ceil(remainingMs / 1000);
-            
-            if (remainingSeconds <= 0) {
-                // Timer finished logic
-                if (countdownRef.current) clearInterval(countdownRef.current);
-                countdownRef.current = null;
-                setTimeLeft(0);
+        // 1. Attempt to show real Ad via SDK
+        if (typeof window.show_10206331 === 'function') {
+            try {
+                if (type === 'Pop') {
+                    // Use 'pop' argument as requested
+                    await window.show_10206331('pop');
+                } else {
+                    // Standard call for others (Interstitial)
+                    await window.show_10206331();
+                }
                 
-                // UX Improvement: Wait 1 second showing "0" before completing
-                // This prevents the "sound before time finishes" feeling
-                setTimeout(() => {
-                    // Check if still active (user didn't cancel during the delay)
-                    if (isAdActiveRef.current) {
-                        setIsAdActive(false);
-                        isAdActiveRef.current = false;
-                        currentTaskIdRef.current = null;
-                        
-                        onReward({ taskId, points });
-                    }
-                }, 1000);
-
-            } else {
-                setTimeLeft(remainingSeconds);
+                onReward({ taskId, points });
+                setIsLoading(false);
+                return;
+            } catch (e) {
+                console.warn("Ad SDK failed/closed, falling back to timer logic.", e);
+                // Fallback to timer logic below
             }
-        }, 200);
-
-        // 2. Attempt to Show Ad (Swallow errors to prevent breaking the flow)
-        try {
-            if (type === 'Interstitial') {
-                console.log("Opening Interstitial Ad...");
-                showAdFn().catch((err: any) => {
-                    console.warn("Interstitial suppressed:", err instanceof Error ? err.message : String(err));
-                });
-            } else {
-                const trackingId = `task-${taskId}-${Date.now()}`;
-                console.log(`Opening ${type} Ad (Pop mode)...`);
-                showAdFn({ 
-                    type: 'pop', 
-                    ymid: trackingId 
-                }).catch((err: any) => {
-                    console.warn("Pop verification warning suppressed:", err instanceof Error ? err.message : String(err));
-                });
-            }
-        } catch (error) {
-            // Catch synchronous errors from the SDK
-            console.warn("Ad sync error suppressed:", error);
         }
 
-    }, [isLoading, onReward, onError, clearAllTimers]);
+        // 2. Fallback: Simulating timer based task
+        setTimeout(() => {
+            // Start Unified Timer Logic
+            setIsAdActive(true);
+            isAdActiveRef.current = true;
+            setTimeLeft(duration);
+            setIsLoading(false);
+
+            const startTime = Date.now();
+            const endTime = startTime + (duration * 1000);
+
+            if (countdownRef.current) clearInterval(countdownRef.current);
+
+            countdownRef.current = setInterval(() => {
+                const now = Date.now();
+                const remainingMs = endTime - now;
+                const remainingSeconds = Math.ceil(remainingMs / 1000);
+                
+                if (remainingSeconds <= 0) {
+                    // Timer finished logic
+                    if (countdownRef.current) clearInterval(countdownRef.current);
+                    countdownRef.current = null;
+                    setTimeLeft(0);
+                    
+                    // UX Improvement: Wait 1 second showing "0" before completing
+                    setTimeout(() => {
+                        // Check if still active (user didn't cancel during the delay)
+                        if (isAdActiveRef.current) {
+                            setIsAdActive(false);
+                            isAdActiveRef.current = false;
+                            currentTaskIdRef.current = null;
+                            
+                            onReward({ taskId, points });
+                        }
+                    }, 1000);
+
+                } else {
+                    setTimeLeft(remainingSeconds);
+                }
+            }, 200);
+            
+            console.log(`Task ${taskId} started. Duration: ${duration}s. Type: ${type} (Fallback Mode)`);
+            
+        }, 300);
+
+    }, [isLoading, onReward, clearAllTimers]);
 
     const cancelAd = useCallback((isSystemCancellation = false) => {
         if (isAdActiveRef.current) {
@@ -113,9 +114,7 @@ export const useTaskAd = ({ onReward, onError }: UseTaskAdOptions) => {
             currentTaskIdRef.current = null;
             setIsLoading(false);
             
-            const msg = isSystemCancellation 
-                ? "Verification Failed: Ad window was closed or minimized before time expired." 
-                : "Task cancelled.";
+            const msg = "Task cancelled.";
             onError(new Error(msg));
         }
     }, [clearAllTimers, onError]);

@@ -11,19 +11,27 @@ const Sidebar: React.FC<SidebarProps> = ({
   onHelpCenter,
   onLogout,
 }) => {
-  const [currentTime, setCurrentTime] = useState<string>("");
+  const [currentDateTime, setCurrentDateTime] = useState<string>("");
 
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
-      const timeString = now.toLocaleTimeString('en-US', {
+      const options: Intl.DateTimeFormatOptions = {
         timeZone: 'America/New_York',
+        month: 'short',
+        day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
-        hour12: false // Set to false to use 24-hour format (0-23)
-      });
-      setCurrentTime(timeString);
+        hour12: false
+      };
+      
+      // Manually constructing to ensure specific format "Date - Time" or similar if standard locale string isn't perfect
+      // But toLocaleString usually does a good job. Let's separate them for control.
+      const datePart = now.toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' });
+      const timePart = now.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+      
+      setCurrentDateTime(`${datePart} • ${timePart}`);
     };
 
     updateTime();
@@ -78,9 +86,9 @@ const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <div className="flex flex-col items-start">
                   <div className="font-bold text-xl leading-tight">DYVERZE ADS</div>
-                  <div className="font-mono mt-1 flex items-center text-blue-100 font-medium text-sm">
-                      <i className="fa-regular fa-clock mr-2"></i>
-                      <span>{currentTime || "--:--:--"}</span>
+                  <div className="font-mono mt-1 flex items-center text-blue-100 font-medium text-xs">
+                      <i className="fa-regular fa-clock mr-1.5"></i>
+                      <span>{currentDateTime || "-- -- • --:--:--"}</span>
                   </div>
               </div>
           </div>
@@ -119,7 +127,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
           {/* Footer */}
           <div className="p-4 border-t border-[var(--border-color)] text-center text-[var(--gray)] text-sm flex-shrink-0 bg-[var(--bg-card)]">
-            DYVERZE ADS v2.1.0
+            DYVERZE ADS v1.0.0
           </div>
         </div>
       </div>

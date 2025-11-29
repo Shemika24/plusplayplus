@@ -13,7 +13,7 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ userProfile, onMenuClick, onNotificationsClick, onProfileClick, activeScreen, onBackClick, onThemeCycle }) => {
-  const isSubScreen = ['Notifications', 'ReferBonus', 'Referrals', 'Profile', 'Withdraw', 'WithdrawalHistory', 'TaskHistory', 'SpecialOffers', 'About'].includes(activeScreen);
+  const isSubScreen = ['Notifications', 'ReferBonus', 'Referrals', 'Profile', 'Withdraw', 'WithdrawalHistory', 'TaskHistory', 'SpecialOffers', 'About', 'HelpCenter'].includes(activeScreen);
   const isDarkMode = userProfile?.theme === 'dark';
 
   return (

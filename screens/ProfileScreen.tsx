@@ -665,7 +665,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
     };
 
     return (
-        <div className="bg-[var(--gray-light)] pb-24 min-h-full transition-colors duration-300">
+        <div className="bg-[var(--gray-light)] pb-32 min-h-full transition-colors duration-300">
             {/* Profile Header */}
             <div className="bg-gradient-to-b from-[var(--bg-card)] to-[var(--bg-card)] p-6 flex flex-col items-center text-center border-b border-[var(--border-color)]">
                 <div className="relative">

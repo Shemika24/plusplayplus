@@ -183,7 +183,7 @@ const LuckyWheelModal: React.FC<LuckyWheelModalProps> = ({ isOpen, onClose, spin
         setIsSpinning(false);
     }, [rotation]);
 
-    // Ad Hook
+    // Ad Hook - Set to 'Pop' for every spin as requested
     const { 
         showRewardedAd, 
         cancelAd, 
@@ -193,6 +193,7 @@ const LuckyWheelModal: React.FC<LuckyWheelModalProps> = ({ isOpen, onClose, spin
     } = useRewardedAd({
         minViewTimeSeconds: 20, // EXACTLY 20 SECONDS
         maxViewTimeSeconds: 20, // EXACTLY 20 SECONDS
+        adType: 'Pop', // This triggers show_10206331('pop')
         onReward: (data) => {
             // This callback fires when the 20s timer finishes
             console.log(`Ad/Timer completed. Granting result.`);

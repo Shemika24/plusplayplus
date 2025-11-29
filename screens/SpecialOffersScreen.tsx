@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 
 const SpecialOffersScreen: React.FC = () => {
     const offers = [
@@ -14,7 +14,7 @@ const SpecialOffersScreen: React.FC = () => {
             <div className="p-4 border-b border-gray-200 bg-white sticky top-0 z-10 flex items-center">
                 <h1 className="text-lg font-bold text-gray-800">Special Offers</h1>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 pb-32 space-y-4">
                 {offers.map((offer) => (
                     <div key={offer.id} className="bg-white rounded-xl shadow-md p-4 flex items-center border border-gray-100">
                         <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-xl ${offer.color} mr-4 flex-shrink-0`}>

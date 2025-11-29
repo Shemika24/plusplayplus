@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 
 const SplashScreen: React.FC = () => {
@@ -214,7 +215,7 @@ const SplashScreen: React.FC = () => {
                 </div>
 
                 <div className="tagline">#1 in ad rewards</div>
-                <div className="version">v2.1.0</div>
+                <div className="version">v1.0.0</div>
             </div>
         </>
     );

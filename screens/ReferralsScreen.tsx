@@ -92,7 +92,7 @@ const ReferralsScreen: React.FC<ReferralsScreenProps> = ({ userProfile, onBack }
                     Referrals
                 </h1>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-32 space-y-6">
                 {/* Stats Section */}
                 <div className="grid grid-cols-2 gap-4">
                     <StatCard 

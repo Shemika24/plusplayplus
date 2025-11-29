@@ -41,7 +41,7 @@ export interface SpinWheelState {
     lossesToday: number;
 }
 
-export type Screen = 'Home' | 'Tasks' | 'Earn' | 'Wallet' | 'Profile' | 'Notifications' | 'ReferBonus' | 'Referrals' | 'Rank' | 'Withdraw' | 'WithdrawalHistory' | 'TaskHistory' | 'WatchVideos' | 'SpecialOffers' | 'About';
+export type Screen = 'Home' | 'Tasks' | 'Earn' | 'Wallet' | 'Profile' | 'Notifications' | 'ReferBonus' | 'Referrals' | 'Rank' | 'Withdraw' | 'WithdrawalHistory' | 'TaskHistory' | 'WatchVideos' | 'SpecialOffers' | 'About' | 'HelpCenter';
 
 export interface SidebarProps {
   isOpen: boolean;

@@ -21,7 +21,7 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ userProfile, onWithdrawClic
     const { directEarnings, commissionEarnings } = userProfile.referrals;
 
     return (
-        <div className="p-4 md:p-6 pb-24 text-[var(--dark)] space-y-6">
+        <div className="p-4 md:p-6 pb-32 text-[var(--dark)] space-y-6">
             {/* Balance Card - Modified */}
             <div className="bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] rounded-2xl shadow-xl p-5 text-white">
                 <div className="flex justify-between items-center">

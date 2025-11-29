@@ -16,6 +16,7 @@ import WithdrawalHistoryScreen from '../screens/WithdrawalHistoryScreen';
 import TaskHistoryScreen from '../screens/TaskHistoryScreen';
 import SpecialOffersScreen from '../screens/SpecialOffersScreen';
 import AboutScreen from '../screens/AboutScreen';
+import HelpCenterScreen from '../screens/HelpCenterScreen';
 import DailyComboModal from './modals/DailyComboModal';
 import { Screen, TaskHistory, Withdrawal, UserProfile } from '../types';
 import { addTaskHistoryItem, addWithdrawalRequest, updateUserProfile } from '../services/firestoreService';
@@ -70,7 +71,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
         setActiveTab('Tasks');
     } else if (activeTab === 'Referrals') {
         setActiveTab(referralsSource);
-    } else if (['Notifications', 'Profile', 'ReferBonus', 'About'].includes(activeTab)) {
+    } else if (['Notifications', 'Profile', 'ReferBonus', 'About', 'HelpCenter'].includes(activeTab)) {
         setActiveTab('Home');
     } else if (activeTab === 'SpecialOffers') {
         setActiveTab('Earn');
@@ -219,6 +220,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
         return <TaskHistoryScreen userProfile={userProfile} />;
       case 'About':
         return <AboutScreen />;
+      case 'HelpCenter':
+        return <HelpCenterScreen />;
       case 'Home':
       default:
         return <MainDashboardScreen userProfile={userProfile} onNavigate={handleNavigation} onOpenBonusCode={() => setBonusCodeModalOpen(true)} />;
@@ -242,7 +245,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ userProfile: initialProfile, on
         currentScreen={activeTab}
         navigateTo={handleNavigation}
         onInviteFriends={() => handleNavigation('Referrals')}
-        onHelpCenter={() => alert('Help Center clicked')}
+        onHelpCenter={() => handleNavigation('HelpCenter')}
         onLogout={onLogout}
       />
       <main className="pt-16 h-full overflow-y-auto">
@@ -279,7 +282,7 @@ const MainDashboardScreen: React.FC<{ userProfile: UserProfile; onNavigate: (scr
     const rewardsRedeemed = userProfile.withdrawalStats.redeemedCount;
 
     return (
-        <div className="p-4 md:p-6 pb-24 text-[var(--dark)]">
+        <div className="p-4 md:p-6 pb-32 text-[var(--dark)]">
             {/* Balance Card */}
             <div className="bg-gradient-to-br from-[var(--primary)] to-[var(--primary-dark)] rounded-2xl shadow-xl p-5 mb-6 text-white">
                 <div className="flex justify-between items-start">

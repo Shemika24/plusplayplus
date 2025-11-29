@@ -58,18 +58,19 @@ const generateTasks = (count: number, idStartIndex: number, type: 'Interstitial'
     const getDuration = (taskType: 'Interstitial' | 'Pop'): number => {
         if (taskType === 'Interstitial') {
             return 15; // Set to 15s
-        } else { // Pop Ad
+        } else { // Pop Ad -> Standard Task
             return 20; // Set to 20s
         }
     };
 
-    const titlePrefix = type === 'Interstitial' ? 'Inters' : 'Pop';
-    const descriptionType = type === 'Interstitial' ? 'inters' : 'pop';
+    // Change terminology to "Task"
+    const titlePrefix = type === 'Interstitial' ? 'Inters Ad' : 'Pop Ad';
+    const description = type === 'Interstitial' ? 'Complete this premium task to earn points.' : 'Complete this task to earn points.';
 
     return Array.from({ length: count }, (_, i) => ({
         id: idStartIndex + i + 1,
-        title: `${titlePrefix} Ad #${i + 1}`, // Title number is now sequential from 1 for each type
-        description: `Watch this short ${descriptionType} ad to earn points.`,
+        title: `${titlePrefix} #${i + 1}`, 
+        description: description,
         duration: getDuration(type),
         points: getPoints(type),
     }));
@@ -89,18 +90,20 @@ const generateAllDailyTasks = (): UiTask[] => {
     // The rest are Pop ads
     const popCount = TOTAL_TASKS - interstitialCount;
 
-    // Generate Interstitial Tasks (IDs 1 to interstitialCount)
+    // Generate Interstitial Ads (IDs 1 to interstitialCount)
+    // RED ICON: fa-rectangle-ad
     const interstitialTasks: UiTask[] = generateTasks(interstitialCount, 0, 'Interstitial').map(task => ({
         ...task,
-        categoryIcon: 'fa-solid fa-rectangle-ad', 
+        categoryIcon: 'fa-solid fa-rectangle-ad',
         categoryIconBgColor: 'bg-red-100',
         categoryIconColor: 'text-red-500',
     }));
 
-    // Generate Pop Tasks (IDs interstitialCount+1 to 1750)
+    // Generate Pop Ads (IDs interstitialCount+1 to 1750)
+    // BLUE ICON: fa-clone
     const popTasks: UiTask[] = generateTasks(popCount, interstitialCount, 'Pop').map(task => ({
         ...task,
-        categoryIcon: 'fa-solid fa-window-restore', 
+        categoryIcon: 'fa-solid fa-clone',
         categoryIconBgColor: 'bg-blue-100',
         categoryIconColor: 'text-blue-500',
     }));
@@ -533,8 +536,19 @@ export const addWithdrawalRequest = async (uid: string, withdrawalItem: Omit<Wit
     await batch.commit();
 };
 
-export const claimDailyCheckIn = async (uid: string, reward: number, todayStr: string, newStreak: number): Promise<UserProfile> => {
+// Helper to get consistent date string (New York Time)
+const getNyDateStr = (date: Date) => date.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+
+export const claimDailyCheckIn = async (uid: string): Promise<{ userProfile: UserProfile, reward: number }> => {
     const userDocRef = doc(db, "users", uid);
+    const todayStr = getNyDateStr(new Date());
+
+    // Calculate yesterday for streak validation
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = getNyDateStr(yesterday);
+
+    let reward = 0;
 
     await runTransaction(db, async (transaction) => {
         const userDoc = await transaction.get(userDocRef);
@@ -545,9 +559,28 @@ export const claimDailyCheckIn = async (uid: string, reward: number, todayStr: s
         const data = userDoc.data() as UserProfile;
         const currentCheckIn = data.dailyCheckIn || { lastDate: '', streak: 0 };
 
-        // Strict server-side check
+        // 1. Check if already claimed today
         if (currentCheckIn.lastDate === todayStr) {
              throw new Error("Already checked in today");
+        }
+
+        // 2. Calculate New Streak (Reset if missed a day)
+        let newStreak = 1;
+        if (currentCheckIn.lastDate === yesterdayStr) {
+            newStreak = currentCheckIn.streak + 1;
+        }
+        // Else: lastDate is empty or older than yesterday -> Reset to 1 (default)
+
+        // 3. Determine Reward based on new Streak
+        const dayIndex = (newStreak - 1) % 7; // 0 to 6
+        const rewardsMap = [75, 100, 150, 200, 300, 500];
+        
+        if (dayIndex < 6) {
+            reward = rewardsMap[dayIndex];
+        } else {
+             // Day 7 Surprise
+             const possibleRewards = [750, 1000, 1250, 1500, 2000, 2500];
+             reward = possibleRewards[Math.floor(Math.random() * possibleRewards.length)];
         }
 
         transaction.update(userDocRef, {
@@ -560,10 +593,13 @@ export const claimDailyCheckIn = async (uid: string, reward: number, todayStr: s
     });
 
     const updatedSnapshot = await getDoc(userDocRef);
-    return updatedSnapshot.data() as UserProfile;
+    return { 
+        userProfile: updatedSnapshot.data() as UserProfile, 
+        reward 
+    };
 };
 
-// --- NEW: Spin Wheel Transaction ---
+// --- Spin Wheel Transaction ---
 export const saveSpinResult = async (uid: string, pointsWon: number, currentDateStr: string): Promise<UserProfile> => {
     const userDocRef = doc(db, "users", uid);
 
@@ -813,20 +849,51 @@ export const getDailyTaskState = async (uid: string) => {
         // If user has existing tasks in their DB, force upgrade their duration and points
         let dataModified = false;
         const sanitizeTask = (t: UiTask) => {
-            const isInterstitial = t.categoryIcon.includes('fa-rectangle-ad');
-            const targetDuration = isInterstitial ? 15 : 20; // 15s for Inters, 20s for Pop
+            // Determine type based on old OR new indicators
+            const isInterstitial = 
+                t.categoryIcon.includes('fa-rectangle-ad') || 
+                t.title.includes('Interstitial Ad') || 
+                t.categoryIcon.includes('fa-star') || 
+                t.title.includes('Inters') || // New check
+                t.title.includes('Premium Task');
+            
+            const targetDuration = isInterstitial ? 15 : 20; 
             
             if (t.duration !== targetDuration) {
                 t.duration = targetDuration;
                 dataModified = true;
             }
             
-            // Migrate points to be 75 or 100 if they aren't already (e.g., if they are 50)
+            // Migrate points to be 75 or 100 if they aren't already
             const validPoints = [75, 100];
             if (!validPoints.includes(t.points)) {
                 const randomIndex = Math.floor(Math.random() * validPoints.length);
                 t.points = validPoints[randomIndex];
                 dataModified = true;
+            }
+
+            // Enforce New Icons & Titles according to screenshot request
+            if (isInterstitial) {
+                 // Check if icon is NOT strictly fa-rectangle-ad or bg color is wrong
+                 if (t.categoryIcon !== 'fa-solid fa-rectangle-ad' || t.categoryIconBgColor !== 'bg-red-100' || !t.title.includes('Inters Ad')) {
+                     t.categoryIcon = 'fa-solid fa-rectangle-ad';
+                     t.categoryIconBgColor = 'bg-red-100';
+                     t.categoryIconColor = 'text-red-500';
+                     // Preserve numbering if possible, else generic
+                     const num = t.title.match(/\d+/) ? t.title.match(/\d+/)![0] : Math.floor(Math.random()*100);
+                     t.title = `Inters Ad #${num}`;
+                     dataModified = true;
+                 }
+            } else {
+                 // Check if icon is NOT strictly fa-clone or bg color is wrong
+                 if (t.categoryIcon !== 'fa-solid fa-clone' || t.categoryIconBgColor !== 'bg-blue-100' || !t.title.includes('Pop Ad')) {
+                     t.categoryIcon = 'fa-solid fa-clone';
+                     t.categoryIconBgColor = 'bg-blue-100';
+                     t.categoryIconColor = 'text-blue-500';
+                     const num = t.title.match(/\d+/) ? t.title.match(/\d+/)![0] : Math.floor(Math.random()*100);
+                     t.title = `Pop Ad #${num}`;
+                     dataModified = true;
+                 }
             }
             
             return t;
@@ -836,8 +903,6 @@ export const getDailyTaskState = async (uid: string) => {
         state.remainingTasks = state.remainingTasks.map(sanitizeTask);
 
         if (dataModified) {
-            // Persist the migrated data so we don't have to do it again
-            // Using updateDoc with the specific fields to avoid overwriting other state changes if any
             await updateDoc(taskDocRef, {
                 currentBatch: state.currentBatch,
                 remainingTasks: state.remainingTasks

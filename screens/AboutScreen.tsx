@@ -8,13 +8,13 @@ const AboutScreen: React.FC = () => {
                 <h1 className="text-lg font-bold text-[var(--dark)]">About App</h1>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6 pb-32">
                 <div className="flex flex-col items-center mb-8 animate-fadeIn">
                     <div className="w-24 h-24 bg-gradient-to-br from-[var(--primary)] to-[var(--accent)] rounded-3xl flex items-center justify-center shadow-lg mb-4">
                         <i className="fa-solid fa-gem text-white text-5xl"></i>
                     </div>
                     <h2 className="text-2xl font-bold text-[var(--dark)]">DYVERZE ADS</h2>
-                    <p className="text-[var(--gray)] font-medium">Version 2.1.0</p>
+                    <p className="text-[var(--gray)] font-medium">Version 1.0.0</p>
                 </div>
 
                 <div className="bg-[var(--bg-card)] rounded-xl shadow-sm border border-[var(--border-color)] p-5 mb-6">

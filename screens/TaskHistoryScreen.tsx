@@ -335,7 +335,7 @@ const TaskHistoryScreen: React.FC<TaskHistoryScreenProps> = ({ userProfile }) =>
                 )}
             </div>
 
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto pb-32">
                  {isLoading ? (
                     <div className="text-center p-8 text-[var(--gray)]">
                         <i className="fa-solid fa-spinner fa-spin text-4xl"></i>
