@@ -131,7 +131,6 @@ const BreakTimer: React.FC<{ endTime: Date; onBreakEnd: () => void }> = ({ endTi
     );
 };
 
-
 const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, userProfile }) => {
     const [dailyState, setDailyState] = useState<DailyTaskState | null>(null);
     const [isLoadingState, setIsLoadingState] = useState(true);
@@ -140,8 +139,8 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
     const [successInfo, setSuccessInfo] = useState<{ points: number } | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     
-    // Auto Mode now has 3 states: OFF, PREMIUM (Interstitial), STANDARD (Pop)
-    const [autoMode, setAutoMode] = useState<'OFF' | 'PREMIUM' | 'STANDARD'>('OFF');
+    // Auto Mode now has 4 states: OFF, PREMIUM, STANDARD, MIXED
+    const [autoMode, setAutoMode] = useState<'OFF' | 'PREMIUM' | 'STANDARD' | 'MIXED'>('OFF');
     
     const fetchAndProcessTasks = useCallback(async () => {
         setIsLoadingState(true);
@@ -149,7 +148,6 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
         try {
             const state = await getDailyTaskState(userProfile.uid);
             setDailyState(state);
-            // Disable auto mode if entering break or empty
             if (state.isOnBreak || state.tasks.length === 0) {
                 setAutoMode('OFF');
             }
@@ -168,13 +166,9 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
     const handleTaskSuccess = useCallback(async ({ taskId, points }: { taskId: number; points: number }) => {
         if (!dailyState) return;
         
-        // --- CRITICAL UPDATE: Immediate Feedback & Removal ---
-        // 1. Play sound/vibrate immediately
         playSound(SOUNDS.SUCCESS, 1.0);
-        vibrate(500); // Single strong vibration for completion
+        vibrate(500);
 
-        // 2. Optimistic UI Update: Remove task INSTANTLY from the list
-        // Capture task details for history before removing
         const completedTask = dailyState.tasks.find(t => t.id === taskId);
         
         setDailyState(prev => {
@@ -192,8 +186,6 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
         if (!completedTask) return;
 
         try {
-            // 3. Async Database Operations
-            // Create history item object to pass to service
             const historyItem: Omit<TaskHistory, 'id' | 'timestamp'> = {
                 reward: points,
                 title: completedTask.title,
@@ -203,19 +195,14 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
             };
 
             await completeTaskInService(userProfile.uid, taskId, points, historyItem);
-            
-            // 4. Update User Points Locally (skip DB save in onEarnPoints since we did it above)
             onEarnPoints(points, completedTask.title, completedTask.categoryIcon, completedTask.categoryIconColor, true);
             
-            // 5. Show Reward Modal
             setSuccessInfo({ points });
-            setTimeout(() => setSuccessInfo(null), 1500); // Shortened for smoother auto flow
+            setTimeout(() => setSuccessInfo(null), 1500); 
             
-            // 6. Fetch latest state to ensure sync (silently update state to catch any server-side changes like breaks)
             const latestState = await getDailyTaskState(userProfile.uid);
             setDailyState(latestState);
             
-            // Auto Mode check if break started
             if (latestState.isOnBreak || latestState.tasks.length === 0) {
                 setAutoMode('OFF');
             }
@@ -223,7 +210,7 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
         } catch (error: any) {
             console.error("Sync error:", error);
             setErrorMessage("Network error. Points were not saved. Please try again.");
-            setAutoMode('OFF'); // Stop auto on error
+            setAutoMode('OFF');
             setTimeout(() => setErrorMessage(null), 4000);
         }
     }, [dailyState, userProfile.uid, onEarnPoints]);
@@ -231,11 +218,12 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
     const { showTaskAd, cancelAd, isAdActive, timeLeft, isLoading: isAdLoading } = useTaskAd({
         onReward: handleTaskSuccess,
         onError: (err) => {
-            console.error("Ad failed:", err instanceof Error ? err.message : String(err));
-            setErrorMessage(err.message || "Task failed. Please try again.");
+            const safeMsg = err instanceof Error ? err.message : String(err);
+            console.error("Ad failed:", safeMsg);
+            setErrorMessage(safeMsg || "Task failed. Please try again.");
             setTimeout(() => setErrorMessage(null), 3000);
             setActiveTaskId(null);
-            setAutoMode('OFF'); // Stop auto loop on error
+            setAutoMode('OFF');
         }
     });
 
@@ -245,11 +233,8 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
         setActiveTaskId(task.id);
         setErrorMessage(null);
 
-        // Check for premium/interstitial based on the new icon or title
         const isInterstitial = task.categoryIcon.includes('fa-rectangle-ad') || task.title.includes('Inters');
         const type = isInterstitial ? 'Interstitial' : 'Pop';
-        
-        // Enforce strictly 15s for Interstitial and 20s for Pop as requested
         const duration = isInterstitial ? 15 : 20;
         
         showTaskAd(task.id, task.points, duration, type);
@@ -258,46 +243,36 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
 
     // --- AUTO MODE LOGIC ---
     useEffect(() => {
-        // If Auto Mode is ON, no task is active, no error, and we have tasks...
         if (autoMode !== 'OFF' && activeTaskId === null && !isAdActive && !errorMessage && dailyState && dailyState.tasks.length > 0) {
             
-            // Wait a moment for the success modal to be visible, then start next
             const autoTimer = setTimeout(() => {
                 if (dailyState.tasks.length > 0) {
-                    // Filter logic: Find the first task that matches the current Auto Mode
                     const nextTask = dailyState.tasks.find(t => {
                         const isPremium = t.categoryIcon.includes('fa-rectangle-ad') || t.title.includes('Inters');
                         if (autoMode === 'PREMIUM') return isPremium;
-                        if (autoMode === 'STANDARD') return !isPremium; // Pop
+                        if (autoMode === 'STANDARD') return !isPremium;
+                        if (autoMode === 'MIXED') return true;
                         return false;
                     });
 
                     if (nextTask) {
                         handleStartTask(nextTask);
                     } else {
-                        // If no tasks of this type match, stop auto mode or pause
-                        // Ideally we stop to let user know
                         setAutoMode('OFF');
                     }
                 } else {
-                    setAutoMode('OFF'); // No more tasks
+                    setAutoMode('OFF');
                 }
             }, 500); 
 
             return () => clearTimeout(autoTimer);
         }
         
-        // Auto-disable if break starts
         if (dailyState?.isOnBreak) {
             setAutoMode('OFF');
         }
 
     }, [autoMode, activeTaskId, isAdActive, errorMessage, dailyState, handleStartTask]);
-
-
-    
-    const progressPercentage = dailyState && dailyState.totalForDay > 0 
-        ? (dailyState.completedToday / dailyState.totalForDay) * 100 : 0;
 
     const renderContent = () => {
         if (isLoadingState) {
@@ -315,171 +290,132 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
                         <i className="fa-solid fa-wifi text-red-500 text-2xl"></i>
                     </div>
                     <h3 className="text-xl font-bold text-[var(--dark)]">Connection Issue</h3>
-                    <p className="text-[var(--gray)] mt-2 mb-4">
-                        We couldn't load your tasks. Please check your internet connection.
-                    </p>
-                    <button 
-                        onClick={fetchAndProcessTasks}
-                        className="px-8 py-3 bg-[var(--primary)] text-white font-bold rounded-xl shadow-md hover:bg-[var(--primary-dark)] transition-colors"
-                    >
-                        Try Again
-                    </button>
+                    <p className="text-[var(--gray)] mt-2">Could not load tasks. Please check your internet.</p>
+                    <button onClick={fetchAndProcessTasks} className="mt-4 px-6 py-2 bg-[var(--primary)] text-white rounded-lg">Retry</button>
+                </div>
+             );
+        }
+
+        if (!dailyState) return null;
+
+        if (dailyState.isOnBreak && dailyState.breakEndTime) {
+            return (
+                <BreakTimer 
+                    endTime={dailyState.breakEndTime} 
+                    onBreakEnd={fetchAndProcessTasks} 
+                />
+            );
+        }
+
+        if (dailyState.tasks.length === 0) {
+            return (
+                <div className="text-center p-8 bg-[var(--bg-card)] rounded-xl shadow-lg border border-[var(--border-color)]">
+                     <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4">
+                        <i className="fa-solid fa-check-double text-green-500 text-2xl"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-[var(--dark)]">All Caught Up!</h3>
+                    <p className="text-[var(--gray)] mt-2">You've completed all tasks for this batch.</p>
                 </div>
             );
         }
 
-        if (dailyState?.isOnBreak && dailyState.breakEndTime) {
-            return <BreakTimer endTime={dailyState.breakEndTime} onBreakEnd={fetchAndProcessTasks} />;
-        }
-
-        if (dailyState && dailyState.tasks.length > 0) {
-             return (
-                 <div className="space-y-3">
-                    {dailyState.tasks.map(task => (
-                        <TaskItemCard
-                            key={task.id}
-                            task={task}
-                            onStart={handleStartTask}
-                            isActive={activeTaskId === task.id}
-                            disabled={activeTaskId !== null && activeTaskId !== task.id}
-                        />
-                    ))}
-                </div>
-             );
-        }
-        
         return (
-            <div className="text-center p-6 bg-[var(--bg-card)] rounded-xl shadow-lg border border-[var(--border-color)]">
-                <i className="fa-solid fa-party-horn text-5xl text-green-500 mb-4"></i>
-                <h3 className="text-2xl font-bold text-[var(--dark)]">All Done!</h3>
-                <p className="text-[var(--gray)] mt-2">
-                    You've completed all available tasks for today. Come back tomorrow for more!
-                </p>
+            <div className="space-y-3 pb-24">
+                {dailyState.tasks.map(task => (
+                    <TaskItemCard 
+                        key={task.id} 
+                        task={task} 
+                        onStart={handleStartTask}
+                        isActive={activeTaskId === task.id}
+                        disabled={activeTaskId !== null && activeTaskId !== task.id}
+                    />
+                ))}
             </div>
         );
     };
 
     return (
-        <div className="p-4 md:p-6 pb-32 text-[var(--dark)] min-h-full relative">
-            {successInfo && <SuccessModal points={successInfo.points} />}
-            
-            {errorMessage && (
-                <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-[120] w-11/12 max-w-md bg-red-500 text-white px-4 py-3 rounded-lg shadow-lg animate-slideInUp flex items-center">
-                    <i className="fa-solid fa-triangle-exclamation mr-3 text-xl"></i>
-                    <span className="text-sm font-medium">{errorMessage}</span>
-                </div>
-            )}
-
-            {(isAdActive || isAdLoading) && (
-                <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 animate-fadeIn select-none">
-                    <div className="w-20 h-20 mb-6 relative flex items-center justify-center">
-                        <svg className="animate-spin h-full w-full text-white/30" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        {isAdActive && <span className="absolute font-bold text-2xl text-white">{timeLeft}</span>}
+        <div className="flex flex-col h-full bg-[var(--gray-light)] relative">
+            {/* Top Card: Compact 3x2 Grid */}
+             <div className="p-3 bg-[var(--bg-card)] border-b border-[var(--border-color)] shadow-sm sticky top-0 z-20">
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                    
+                    {/* Row 1: Title & History */}
+                    <div className="flex items-center text-[var(--dark)] font-bold text-sm">
+                        <i className="fa-solid fa-list-check text-[var(--primary)] mr-2"></i>
+                        Tasks
                     </div>
-                    
-                    <p className="text-white/90 font-medium text-lg animate-pulse">
-                        {isAdLoading ? "Opening..." : "Verifying..."}
-                    </p>
-                    
-                    {autoMode !== 'OFF' && (
-                        <div className="absolute top-6 right-6 bg-white/20 px-3 py-1 rounded-full flex items-center animate-pulse">
-                            <div className={`w-2 h-2 rounded-full mr-2 ${autoMode === 'PREMIUM' ? 'bg-red-400' : 'bg-blue-400'}`}></div>
-                            <span className="text-white text-xs font-bold">
-                                AUTO {autoMode === 'PREMIUM' ? 'PREMIUM' : 'STANDARD'}
-                            </span>
-                        </div>
-                    )}
-
-                    <button 
-                        onClick={() => { cancelAd(false); setAutoMode('OFF'); }}
-                        className="mt-12 px-6 py-2 rounded-full border border-white/20 text-white/60 hover:bg-white/10 hover:text-white transition-all text-sm"
-                    >
-                        Cancel
-                    </button>
-                </div>
-            )}
-
-            <style>{`
-                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-                .animate-fadeIn { animation: fadeIn 0.3s ease forwards; }
-                @keyframes slideInUp { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
-                .animate-slideInUp { animation: slideInUp 0.3s ease-out forwards; }
-            `}</style>
-            
-            <div className="bg-[var(--bg-card)] rounded-xl shadow-lg p-4 mb-6 border-l-4 border-[var(--primary)] transition-colors">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
-                     <h3 className="font-bold text-lg text-[var(--dark)]">Tasks</h3>
-                     
-                     <div className="flex items-center gap-2 flex-wrap">
-                         {/* Auto Premium Button (Inters Ad) */}
-                         <button
-                            onClick={() => {
-                                if (autoMode === 'PREMIUM') setAutoMode('OFF');
-                                else if (dailyState && dailyState.tasks.length > 0 && !dailyState.isOnBreak && !fetchError) setAutoMode('PREMIUM');
-                            }}
-                            disabled={!dailyState || dailyState.tasks.length === 0 || dailyState.isOnBreak || fetchError}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-300 text-xs font-bold shadow-sm
-                                ${autoMode === 'PREMIUM' 
-                                    ? 'bg-red-100 text-red-700 border-red-300 ring-2 ring-red-200' 
-                                    : 'bg-[var(--bg-input)] text-[var(--gray)] border-[var(--border-color)] hover:bg-red-50'}
-                                disabled:opacity-50 disabled:cursor-not-allowed`}
+                    <div className="flex justify-end">
+                        <button 
+                            onClick={() => onNavigate('TaskHistory')}
+                            className="text-[var(--gray)] hover:text-[var(--primary)] transition-colors text-xs"
                         >
-                             <i className={`fa-solid fa-rectangle-ad ${autoMode === 'PREMIUM' ? 'animate-pulse' : ''}`}></i>
-                             <span>Auto Premium</span>
-                         </button>
-
-                         {/* Auto Standard Button (Pop Ad) */}
-                         <button
-                            onClick={() => {
-                                if (autoMode === 'STANDARD') setAutoMode('OFF');
-                                else if (dailyState && dailyState.tasks.length > 0 && !dailyState.isOnBreak && !fetchError) setAutoMode('STANDARD');
-                            }}
-                            disabled={!dailyState || dailyState.tasks.length === 0 || dailyState.isOnBreak || fetchError}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-300 text-xs font-bold shadow-sm
-                                ${autoMode === 'STANDARD' 
-                                    ? 'bg-blue-100 text-blue-700 border-blue-300 ring-2 ring-blue-200' 
-                                    : 'bg-[var(--bg-input)] text-[var(--gray)] border-[var(--border-color)] hover:bg-blue-50'}
-                                disabled:opacity-50 disabled:cursor-not-allowed`}
-                        >
-                             <i className={`fa-solid fa-clone ${autoMode === 'STANDARD' ? 'animate-pulse' : ''}`}></i>
-                             <span>Auto Standard</span>
-                         </button>
-
-                        <button onClick={() => onNavigate('TaskHistory')} className="text-[var(--gray)] hover:text-[var(--dark)] transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-input)] ml-1">
-                            <i className="fa-solid fa-clock-rotate-left text-lg"></i>
+                            <i className="fa-solid fa-clock-rotate-left text-base"></i>
                         </button>
-                     </div>
-                </div>
-                
-                <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center">
-                        <div className="flex-shrink-0 mr-3">
-                            <i className="fa-solid fa-list-check text-[var(--primary)] text-3xl"></i>
-                        </div>
-                        <div>
-                            <p className="text-xs text-[var(--gray)]">Completed</p>
-                            <p className="font-bold text-2xl text-[var(--dark)]">{dailyState?.completedToday || 0}</p>
-                        </div>
                     </div>
-                    
-                    <div className="text-right">
-                         <div className="text-sm text-[var(--gray)] mb-1">
-                            Daily: <span className="font-bold text-[var(--dark)]">{dailyState?.totalForDay || 0}</span>
-                         </div>
-                         <div className="text-sm text-[var(--gray)]">
-                            Available: <span className="font-bold text-[var(--primary)]">{dailyState?.availableInBatch || 0}</span>
-                         </div>
-                    </div>
-                </div>
-                <div className="w-full bg-[var(--bg-input)] rounded-full h-2.5">
-                    <div className="bg-[var(--primary)] h-2.5 rounded-full transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div>
-                </div>
-            </div>
 
-            {renderContent()}
+                    {/* Row 2: Available & Auto Btns */}
+                    <div className="flex items-center text-[11px] text-[var(--gray)] font-medium">
+                        Available: <span className="ml-1 text-[var(--dark)] font-bold">{dailyState?.tasks.length || 0}</span>
+                    </div>
+                    <div className="flex justify-end items-center gap-1">
+                         {/* Auto Buttons - Tiny, Low Opacity by default */}
+                         <button 
+                            onClick={() => setAutoMode(autoMode === 'STANDARD' ? 'OFF' : 'STANDARD')}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase transition-all border border-blue-200
+                                ${autoMode === 'STANDARD' 
+                                    ? 'bg-blue-100 text-blue-600 opacity-100' 
+                                    : 'bg-gray-50 text-gray-400 opacity-20 hover:opacity-100'}`}
+                         >
+                            Std
+                         </button>
+                         <button 
+                            onClick={() => setAutoMode(autoMode === 'PREMIUM' ? 'OFF' : 'PREMIUM')}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase transition-all border border-red-200
+                                ${autoMode === 'PREMIUM' 
+                                    ? 'bg-red-100 text-red-600 opacity-100' 
+                                    : 'bg-gray-50 text-gray-400 opacity-20 hover:opacity-100'}`}
+                         >
+                            Pre
+                         </button>
+                         <button 
+                            onClick={() => setAutoMode(autoMode === 'MIXED' ? 'OFF' : 'MIXED')}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase transition-all border border-purple-200
+                                ${autoMode === 'MIXED' 
+                                    ? 'bg-purple-100 text-purple-600 opacity-100' 
+                                    : 'bg-gray-50 text-gray-400 opacity-20 hover:opacity-100'}`}
+                         >
+                            Mix
+                         </button>
+                    </div>
+
+                    {/* Row 3: Timer & Done */}
+                    <div className="flex items-center text-[11px] text-[var(--gray)] font-medium h-4">
+                        {(isAdActive || isLoadingState && activeTaskId) ? (
+                             <>
+                                <i className="fa-solid fa-stopwatch mr-1 animate-pulse text-[var(--primary)]"></i>
+                                <span className="font-mono text-[var(--primary)]">{timeLeft}s</span>
+                             </>
+                        ) : (
+                             <span className="text-[9px] opacity-40">Idle</span>
+                        )}
+                    </div>
+                    <div className="flex justify-end items-center text-[11px] text-[var(--gray)] font-medium">
+                        Done: <span className="ml-1 text-[var(--success)] font-bold">{dailyState?.completedToday || 0}</span>
+                    </div>
+                </div>
+             </div>
+
+             <div className="flex-1 overflow-y-auto p-3">
+                 {errorMessage && (
+                    <div className="mb-3 bg-red-100 border border-red-200 text-red-600 text-xs rounded-lg p-2 text-center animate-bounce">
+                        {errorMessage}
+                    </div>
+                 )}
+                 {renderContent()}
+             </div>
+
+             {successInfo && <SuccessModal points={successInfo.points} />}
         </div>
     );
 };

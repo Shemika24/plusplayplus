@@ -36,13 +36,13 @@ const AuthScreen: React.FC = () => {
     const renderContent = () => {
         switch (authView) {
             case 'login':
-                return <SignInForm onToggleView={setAuthView} />;
+                return <SignInForm onToggleView={setAuthView} setModalState={setModalState} />;
             case 'signup':
                 return <SignUpForm onToggleView={setAuthView} setModalState={setModalState} />;
             case 'forgotPassword':
                 return <ForgotPasswordForm onToggleView={setAuthView} setModalState={setModalState} />;
             default:
-                return <SignInForm onToggleView={setAuthView} />;
+                return <SignInForm onToggleView={setAuthView} setModalState={setModalState} />;
         }
     };
 
@@ -112,12 +112,48 @@ const PasswordInput: React.FC<{ id: string; value: string; onChange: (e: React.C
 
 
 // --- Sign In Form Component ---
-const SignInForm: React.FC<{ onToggleView: (view: AuthView) => void }> = ({ onToggleView }) => {
+const SignInForm: React.FC<{ onToggleView: (view: AuthView) => void; setModalState: React.Dispatch<React.SetStateAction<ModalState>> }> = ({ onToggleView, setModalState }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [rememberMe, setRememberMe] = useState(true);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [retryCount, setRetryCount] = useState(0);
+
+    const closeModal = () => setModalState(prev => ({ ...prev, isOpen: false }));
+
+    const handleNetworkError = () => {
+        const newCount = retryCount + 1;
+        setRetryCount(newCount);
+
+        if (newCount >= 3) {
+            setModalState({
+                isOpen: true,
+                title: 'Connection Issue',
+                message: 'We are unable to connect to the server after multiple attempts.\n\nPlease check your internet connection or contact support if the problem persists.',
+                type: 'error',
+                actions: [
+                    { 
+                        text: 'Contact Support', 
+                        onClick: () => {
+                            window.location.href = "mailto:support@dyverzeads.com?subject=Login Connection Issue";
+                            closeModal();
+                        }, 
+                        primary: true 
+                    },
+                    { text: 'Close', onClick: closeModal }
+                ]
+            });
+        } else {
+            setModalState({
+                isOpen: true,
+                title: 'Connection Failed',
+                message: 'There was a problem connecting to the server. Please check your internet connection and try again.',
+                type: 'error',
+                actions: [{ text: 'Try Again', onClick: closeModal, primary: true }]
+            });
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -125,8 +161,16 @@ const SignInForm: React.FC<{ onToggleView: (view: AuthView) => void }> = ({ onTo
         setLoading(true);
         try {
             await signInUser(email, password, rememberMe);
+            setRetryCount(0); // Reset on success
         } catch (err: any) {
-            setError(err.message || 'Failed to sign in. Please check your credentials.');
+            const errorMessage = err.message || '';
+            
+            // Check for network-request-failed
+            if (errorMessage.includes('network-request-failed')) {
+                handleNetworkError();
+            } else {
+                setError(errorMessage || 'Failed to sign in. Please check your credentials.');
+            }
         } finally {
             setLoading(false);
         }
@@ -190,6 +234,7 @@ const SignUpForm: React.FC<{ onToggleView: (view: AuthView) => void; setModalSta
     const [confirmPassword, setConfirmPassword] = useState('');
     const [acceptedTerms, setAcceptedTerms] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [retryCount, setRetryCount] = useState(0);
     
     // Telegram Auto-Fill Check
     useEffect(() => {
@@ -205,6 +250,39 @@ const SignUpForm: React.FC<{ onToggleView: (view: AuthView) => void; setModalSta
     }, []);
 
     const closeModal = () => setModalState(prev => ({ ...prev, isOpen: false }));
+
+    const handleNetworkError = () => {
+        const newCount = retryCount + 1;
+        setRetryCount(newCount);
+
+        if (newCount >= 3) {
+            setModalState({
+                isOpen: true,
+                title: 'Connection Issue',
+                message: 'We are unable to connect to the server after multiple attempts.\n\nPlease check your internet connection or contact support if the problem persists.',
+                type: 'error',
+                actions: [
+                    { 
+                        text: 'Contact Support', 
+                        onClick: () => {
+                            window.location.href = "mailto:support@dyverzeads.com?subject=Registration Connection Issue";
+                            closeModal();
+                        }, 
+                        primary: true 
+                    },
+                    { text: 'Close', onClick: closeModal }
+                ]
+            });
+        } else {
+            setModalState({
+                isOpen: true,
+                title: 'Connection Failed',
+                message: 'There was a problem connecting to the server. Please check your internet connection and try again.',
+                type: 'error',
+                actions: [{ text: 'Try Again', onClick: closeModal, primary: true }]
+            });
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -268,7 +346,8 @@ const SignUpForm: React.FC<{ onToggleView: (view: AuthView) => void; setModalSta
         setLoading(true);
         try {
             await signUpUser(name, email, password);
-            
+            setRetryCount(0); // Reset on success
+
             setModalState({
                 isOpen: true,
                 title: 'Account Created!',
@@ -284,14 +363,23 @@ const SignUpForm: React.FC<{ onToggleView: (view: AuthView) => void; setModalSta
             setConfirmPassword('');
             setAcceptedTerms(false);
         } catch (err: any) {
-            let errorMessage = err.message || 'Failed to create an account.';
-            if (err.code === 'auth/email-already-in-use') {
-                errorMessage = 'An account with this email already exists.';
+            const errorMessage = err.message || 'Failed to create an account.';
+            
+            if (errorMessage.includes('network-request-failed')) {
+                handleNetworkError();
+                setLoading(false);
+                return;
             }
+
+            let displayMessage = errorMessage;
+            if (err.code === 'auth/email-already-in-use') {
+                displayMessage = 'An account with this email already exists.';
+            }
+            
             setModalState({
                 isOpen: true,
                 title: 'Registration Failed',
-                message: errorMessage,
+                message: displayMessage,
                 type: 'error',
                 actions: [{ text: 'OK', onClick: closeModal, primary: true }]
             });

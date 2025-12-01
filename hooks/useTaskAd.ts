@@ -54,7 +54,9 @@ export const useTaskAd = ({ onReward, onError }: UseTaskAdOptions) => {
                 setIsLoading(false);
                 return;
             } catch (e) {
-                console.warn("Ad SDK failed/closed, falling back to timer logic.", e);
+                // Fix for circular JSON error: serialize only the message or a safe string representation
+                const errorMessage = e instanceof Error ? e.message : String(e);
+                console.warn("Ad SDK failed/closed, falling back to timer logic.", errorMessage);
                 // Fallback to timer logic below
             }
         }
@@ -115,6 +117,7 @@ export const useTaskAd = ({ onReward, onError }: UseTaskAdOptions) => {
             setIsLoading(false);
             
             const msg = "Task cancelled.";
+            // Pass a safe error object
             onError(new Error(msg));
         }
     }, [clearAllTimers, onError]);

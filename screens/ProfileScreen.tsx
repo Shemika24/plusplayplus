@@ -633,23 +633,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
         await deleteCurrentUser();
     };
 
-    const handleTelegramShare = () => {
-        const tg = window.Telegram?.WebApp;
-        const tgUser = tg?.initDataUnsafe?.user;
-
-        if (tg && tgUser) {
-            const botUsername = "plusplayplus_bot";
-            const referralLink = `https://t.me/${botUsername}?start=${tgUser.id}`;
-            const shareText = `🎉 Hello! I'm ${tgUser.first_name} and I'm using this amazing app! Use my link to get a special bonus: ${referralLink}`;
-            const url = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareText)}`;
-
-            tg.openTelegramLink(url);
-        } else {
-            // Fallback for web users
-            alert("This feature is optimized for Telegram. Please use the Referrals screen for standard sharing.");
-        }
-    };
-
     const filteredCountries = ALL_COUNTRIES.filter(c =>
         c.name.toLowerCase().includes(countrySearch.toLowerCase()) || c.code.includes(countrySearch)
     );
@@ -685,12 +668,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                         onChange={handleImageCapture}
                         className="hidden"
                     />
-                    <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="absolute -bottom-1 -right-1 w-8 h-8 bg-[var(--primary)] text-white rounded-full flex items-center justify-center border-2 border-[var(--bg-card)] shadow-md hover:bg-[var(--primary-dark)] transition-colors"
-                    >
-                        <i className="fa-solid fa-camera"></i>
-                    </button>
+                    {isEditing && (
+                        <button 
+                            onClick={() => fileInputRef.current?.click()}
+                            className="absolute -bottom-1 -right-1 w-8 h-8 bg-[var(--primary)] text-white rounded-full flex items-center justify-center border-2 border-[var(--bg-card)] shadow-md hover:bg-[var(--primary-dark)] transition-colors"
+                        >
+                            <i className="fa-solid fa-camera"></i>
+                        </button>
+                    )}
                 </div>
                 
                 {/* Removed username display, showing only Full Name from DB */}
@@ -817,17 +802,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userProfile, onProfileUpd
                             )}
                         </div>
                     </div>
-                </div>
-
-                {/* Share & Earn */}
-                <div className="bg-[var(--bg-card)] rounded-xl shadow-lg p-4 border border-[var(--border-color)]">
-                    <h3 className="font-bold text-lg text-[var(--dark)] mb-2 px-1">Share & Earn</h3>
-                    <SettingsRow 
-                        icon="fa-brands fa-telegram" 
-                        label="Invite Friends via Telegram" 
-                        onClick={handleTelegramShare}
-                        value="Get bonuses!" 
-                    />
                 </div>
 
                 {/* Settings */}

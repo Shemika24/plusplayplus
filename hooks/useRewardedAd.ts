@@ -81,17 +81,12 @@ export const useRewardedAd = ({
                 } else {
                     await window.show_10206331();
                 }
-
-                // Ad success (Immediate or handled via SDK callback if available, assuming immediate success/callback flow)
-                // Note: If the SDK is asynchronous without a promise, this might need adjustment, 
-                // but based on provided structure we assume await works or we fall through.
                 
-                // If using the fallback timer logic below for SDKs that don't await properly, 
-                // we can return here, OR we can let the timer logic run as a "minimum view time" enforcer.
-                // For this implementation, we will allow the timer to run as the UX feedback.
                 console.log(`Ad SDK called: ${adType}`);
             } catch (e) {
-                console.warn("Ad SDK failed/closed, falling back to timer logic.", e);
+                // Fix for circular JSON error
+                const errorMessage = e instanceof Error ? e.message : String(e);
+                console.warn("Ad SDK failed/closed, falling back to timer logic.", errorMessage);
                 // Fallback to timer logic below
             }
         }
@@ -138,12 +133,15 @@ export const useRewardedAd = ({
                 }, 200); 
 
             } catch (error) {
-                console.error('Task process error:', error);
+                // Fix for circular JSON error
+                const errorMessage = error instanceof Error ? error.message : String(error);
+                console.error('Task process error:', errorMessage);
+                
                 clearAllTimers();
                 setIsAdActive(false);
                 isAdActiveRef.current = false;
                 setIsLoading(false);
-                if (onError) onError(error);
+                if (onError) onError(new Error(errorMessage));
             }
         }, 500); // Small delay to simulate processing
 

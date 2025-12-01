@@ -76,39 +76,79 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
     }, [isOnCooldown, nextWithdrawalDate]);
 
     const getMethodSpecs = (method: string, cryptoName?: string) => {
-        let fee = 0.03;
+        let feePercentage = 0;
+        let fixedFee = 0;
         let min = 5;
         let max = 500;
 
         switch (method) {
-            case 'PayPal': fee = 0.03; min = 5; max = 500; break;
-            case 'Payeer': fee = 0.02; min = 2; max = 250; break;
-            case 'Payoneer': fee = 0.035; min = 50; max = 1000; break;
-            case 'Airtm': fee = 0.05; min = 5; max = 300; break;
+            case 'PayPal': 
+                feePercentage = 0.035; // 3.5%
+                fixedFee = 0.30;       // + $0.30
+                min = 5; 
+                max = 500; 
+                break;
+            case 'Payeer': 
+                feePercentage = 0.03;  // 3%
+                fixedFee = 0.00;       // + $0.00
+                min = 2; 
+                max = 250; 
+                break;
+            case 'Payoneer': 
+                feePercentage = 0.04; // 4%
+                fixedFee = 0.50;      // + $0.50
+                min = 50; 
+                max = 1000; 
+                break;
+            case 'Airtm': 
+                feePercentage = 0.01;  // 1%
+                fixedFee = 0.20;       // + $0.20
+                min = 5; 
+                max = 300; 
+                break;
             case 'Crypto':
-                if (cryptoName?.includes('TRX')) { fee = 0.03; min = 10; max = 1000; }
-                else if (cryptoName?.includes('LTC')) { fee = 0.015; min = 5; max = 500; }
-                else if (cryptoName?.includes('BNB')) { fee = 0.02; min = 100; max = 1000; }
-                else if (cryptoName?.includes('TRC20')) { fee = 0.02; min = 100; max = 1000; }
-                else { fee = 0.03; min = 10; max = 1000; } 
+                if (cryptoName?.includes('TRC20')) { 
+                    // Tether TRC-20
+                    feePercentage = 0.0; 
+                    fixedFee = 2.00;
+                    min = 10; 
+                    max = 1000; 
+                } else if (cryptoName?.includes('TON') || cryptoName?.includes('Toncoin')) { 
+                    // Toncoin (TON)
+                    feePercentage = 0.0; 
+                    fixedFee = 0.20;
+                    min = 2; 
+                    max = 1000; 
+                } else { 
+                    // Fallback / Others
+                    feePercentage = 0.03; 
+                    fixedFee = 0.00;
+                    min = 10; 
+                    max = 1000; 
+                } 
+                break;
+            default:
+                feePercentage = 0.03;
+                fixedFee = 0;
                 break;
         }
-        return { fee, min, max };
+        return { feePercentage, fixedFee, min, max };
     };
 
-    const { feePercentage, minWithdrawal, maxWithdrawal } = useMemo(() => {
-        if (!selectedPaymentDetails) return { feePercentage: 0, minWithdrawal: 0, maxWithdrawal: 0 };
+    const { feePercentage, fixedFee, minWithdrawal, maxWithdrawal } = useMemo(() => {
+        if (!selectedPaymentDetails) return { feePercentage: 0, fixedFee: 0, minWithdrawal: 0, maxWithdrawal: 0 };
         const specs = getMethodSpecs(selectedPaymentDetails.method, selectedPaymentDetails.cryptoName);
         return {
-            feePercentage: specs.fee,
+            feePercentage: specs.feePercentage,
+            fixedFee: specs.fixedFee,
             minWithdrawal: specs.min,
             maxWithdrawal: specs.max
         };
     }, [selectedPaymentDetails]);
 
     const amountNumber = parseFloat(amount) || 0;
-    const fee = amountNumber * feePercentage;
-    const amountToReceive = amountNumber - fee;
+    const fee = (amountNumber * feePercentage) + fixedFee;
+    const amountToReceive = Math.max(0, amountNumber - fee);
 
     const canWithdraw = useMemo(() => {
         return selectedPaymentDetails && amountNumber > 0 && amountNumber <= balance && !isOnCooldown;
@@ -330,8 +370,13 @@ const WithdrawScreen: React.FC<WithdrawScreenProps> = ({ balance, onBack, onNewW
                                     <span className="font-medium text-[var(--dark)]">${amountNumber.toFixed(2)}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-[var(--gray)]">Fee ({(feePercentage * 100).toFixed(1)}%):</span>
-                                    <span className="font-medium text-red-600">-${fee.toFixed(2)}</span>
+                                    <span className="text-[var(--gray)]">Fee:</span>
+                                    <span className="font-medium text-red-600">
+                                        -${fee.toFixed(2)}
+                                        <span className="text-xs ml-1 opacity-70">
+                                            ({(feePercentage * 100).toFixed(1)}% + ${fixedFee.toFixed(2)})
+                                        </span>
+                                    </span>
                                 </div>
                                 <div className="flex justify-between font-bold text-base border-t border-[var(--border-color)] pt-2 mt-2">
                                     <span className="text-[var(--dark)]">You Will Receive:</span>

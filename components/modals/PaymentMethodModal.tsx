@@ -31,15 +31,13 @@ interface CryptoDetails {
 }
 
 const cryptocurrencies: CryptoDetails[] = [
-    { id: 'TRX', name: 'Tron (TRX)', placeholder: 'Enter your Tron (TRX) address' },
-    { id: 'LTC', name: 'Litecoin (LTC)', placeholder: 'Enter your Litecoin (LTC) address' },
-    { id: 'BNB', name: 'BNB Smart Chain', placeholder: 'Enter your BNB (BEP20) address' },
-    { id: 'USDT_TRC20', name: 'Tether (TRC20)', placeholder: 'Enter your Tether (TRC20) address' },
+    { id: 'TON', name: 'Toncoin (TON)', placeholder: 'Enter your Toncoin (TON) address' },
+    { id: 'USDT_TRC20', name: 'Tether (TRC20)', placeholder: 'Enter your Tether (TRC20) address (Starts with T)' },
 ];
 
 const paymentMethods: MethodConfig[] = [
     { name: 'PayPal', icon: 'fa-brands fa-paypal', placeholder: 'Enter your PayPal email', colors: { icon: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-100 dark:border-blue-800' } },
-    { name: 'Payeer', icon: 'fa-solid fa-p', placeholder: 'Enter your Payeer ID (P1...)', colors: { icon: 'text-sky-600', bg: 'bg-sky-50 dark:bg-sky-900/20', border: 'border-sky-100 dark:border-sky-800' } },
+    { name: 'Payeer', icon: 'fa-solid fa-p', placeholder: 'Enter your Payeer ID (e.g., P1234567890)', colors: { icon: 'text-sky-600', bg: 'bg-sky-50 dark:bg-sky-900/20', border: 'border-sky-100 dark:border-sky-800' } },
     { name: 'Payoneer', icon: 'fa-brands fa-cc-mastercard', placeholder: 'Enter your Payoneer email', colors: { icon: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-100 dark:border-red-800' } },
     { name: 'Airtm', icon: 'fa-solid fa-cloud', placeholder: 'Enter your Airtm email', colors: { icon: 'text-teal-600', bg: 'bg-teal-50 dark:bg-teal-900/20', border: 'border-teal-100 dark:border-teal-800' } },
     { name: 'Crypto', icon: 'fa-solid fa-coins', placeholder: 'Enter your Crypto Wallet Address', colors: { icon: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20', border: 'border-purple-100 dark:border-purple-800' } },
@@ -117,21 +115,67 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
 
         setError('');
         setSuccessMsg('');
+        const trimmedInput = detailInput.trim();
 
+        // --- 1. Limit Check (Max 2 Methods) ---
+        // Check if we are updating an existing method or adding a new one
+        const isUpdatingExisting = currentDetails.some(d => d.method === expandedMethod);
+        
+        if (!isUpdatingExisting && currentDetails.length >= 2) {
+            setError("Limit reached. You can only configure a maximum of 2 payment methods.");
+            return;
+        }
+
+        // --- 2. Specific Validators ---
         if (expandedMethod === 'Crypto' && !selectedCrypto) {
             setError('Please select a cryptocurrency.');
             return;
         }
-        if (!detailInput.trim()) {
+        if (!trimmedInput) {
             setError('Please enter your payment details.');
             return;
+        }
+
+        // Validate based on type
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        
+        if (['PayPal', 'Payoneer', 'Airtm'].includes(expandedMethod)) {
+            if (!emailRegex.test(trimmedInput)) {
+                setError(`Invalid email format for ${expandedMethod}.`);
+                return;
+            }
+        } else if (expandedMethod === 'Payeer') {
+            // Payeer: 1 letter P (case insensitive) followed by exactly 10 numbers
+            const payeerRegex = /^[Pp][0-9]{10}$/;
+            if (!payeerRegex.test(trimmedInput)) {
+                setError("Invalid Payeer ID. It must start with 'P' followed by exactly 10 numbers.");
+                return;
+            }
+        } else if (expandedMethod === 'Crypto') {
+            if (selectedCrypto?.id === 'USDT_TRC20') {
+                // TRC20 usually starts with T and is around 34 chars
+                if (!trimmedInput.startsWith('T')) {
+                    setError("Invalid TRC20 address. It must start with the letter 'T'.");
+                    return;
+                }
+                if (trimmedInput.length < 30 || trimmedInput.length > 45) {
+                    setError("Invalid TRC20 address length. Please check your wallet address.");
+                    return;
+                }
+            } else if (selectedCrypto?.id === 'TON') {
+                // TON addresses are usually 48 chars (raw) or base64url encoded friendly
+                if (trimmedInput.length < 40) {
+                    setError("Invalid TON address. It appears to be too short.");
+                    return;
+                }
+            }
         }
 
         setIsLoading(true);
         try {
             const newEntry: PaymentDetails = {
                 method: expandedMethod,
-                detail: detailInput.trim(),
+                detail: trimmedInput,
             };
             
             if (expandedMethod === 'Crypto' && selectedCrypto) {
@@ -155,6 +199,22 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
             setIsLoading(false);
         }
     };
+
+    const handleDeleteMethod = async (methodName: string) => {
+        setIsLoading(true);
+        try {
+            const updatedList = currentDetails.filter(d => d.method !== methodName);
+            await onSave(updatedList);
+            setDetailInput('');
+            setSelectedCrypto(null);
+            setSuccessMsg(`${methodName} removed.`);
+            setTimeout(() => setSuccessMsg(''), 2000);
+        } catch (err) {
+            setError('Failed to remove method.');
+        } finally {
+            setIsLoading(false);
+        }
+    }
 
     const getExistingDetailDisplay = (method: PaymentMethodType) => {
         const found = currentDetails.find(d => d.method === method);
@@ -208,7 +268,8 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
                                 <label className="block text-xs font-bold text-[var(--gray)] mb-1 uppercase">Cryptocurrency</label>
                                 <button
                                     onClick={() => setIsCryptoDropdownOpen(!isCryptoDropdownOpen)}
-                                    className="w-full flex items-center justify-between px-3 py-3 text-left bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all"
+                                    disabled={isSaved}
+                                    className="w-full flex items-center justify-between px-3 py-3 text-left bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
                                     {selectedCrypto ? (
                                         <span className="text-[var(--dark)] font-medium">{selectedCrypto.name}</span>
@@ -217,7 +278,7 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
                                     )}
                                     <i className={`fa-solid fa-chevron-down text-[var(--gray)] transition-transform ${isCryptoDropdownOpen ? 'rotate-180' : ''}`}></i>
                                 </button>
-                                {isCryptoDropdownOpen && (
+                                {isCryptoDropdownOpen && !isSaved && (
                                     <div className="absolute z-20 w-full mt-1 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl shadow-xl max-h-48 overflow-auto">
                                         {cryptocurrencies.map(crypto => (
                                             <button
@@ -250,8 +311,8 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
                                     setSuccessMsg('');
                                 }}
                                 placeholder={methodConfig.name === 'Crypto' ? (selectedCrypto?.placeholder || 'Select coin first') : methodConfig.placeholder}
-                                disabled={methodConfig.name === 'Crypto' && !selectedCrypto}
-                                className="w-full px-3 py-3 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl shadow-sm focus:ring-2 focus:ring-[var(--primary)] focus:outline-none disabled:bg-[var(--gray-light)] disabled:text-[var(--gray)] transition-all font-medium text-[var(--dark)]"
+                                disabled={(methodConfig.name === 'Crypto' && !selectedCrypto) || isSaved}
+                                className="w-full px-3 py-3 bg-[var(--bg-input)] border border-[var(--border-color)] rounded-xl shadow-sm focus:ring-2 focus:ring-[var(--primary)] focus:outline-none disabled:bg-[var(--gray-light)] disabled:text-[var(--gray)] transition-all font-medium text-[var(--dark)] disabled:cursor-not-allowed"
                             />
                         </div>
 
@@ -269,13 +330,25 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
                             </div>
                         )}
 
-                        <button 
-                            onClick={handleSaveMethod}
-                            disabled={isLoading}
-                            className="w-full bg-[var(--primary)] text-white font-bold py-3 rounded-xl shadow-lg hover:bg-[var(--primary-dark)] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center"
-                        >
-                            {isLoading ? <i className="fa-solid fa-spinner fa-spin"></i> : 'Save Details'}
-                        </button>
+                        <div className="mt-4">
+                            {isSaved ? (
+                                <button 
+                                    onClick={() => handleDeleteMethod(methodConfig.name)}
+                                    disabled={isLoading}
+                                    className="w-full bg-red-500 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-red-600 transition-all disabled:opacity-70 flex items-center justify-center"
+                                >
+                                    {isLoading ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-trash-can text-xl"></i>}
+                                </button>
+                            ) : (
+                                <button 
+                                    onClick={handleSaveMethod}
+                                    disabled={isLoading}
+                                    className="w-full bg-[var(--primary)] text-white font-bold py-3 rounded-xl shadow-lg hover:bg-[var(--primary-dark)] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center"
+                                >
+                                    {isLoading ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-check text-xl"></i>}
+                                </button>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
@@ -288,7 +361,19 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
         <Modal isOpen={isOpen} onClose={onClose} title="Manage Payment Methods">
              {isProfileComplete ? (
                 <div className="p-4 bg-[var(--bg-input)] max-h-[70vh] overflow-y-auto">
-                    {/* Important Security Notice */}
+                    {/* Security & Limit Info */}
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 mb-4 flex items-center justify-between">
+                         <div>
+                            <p className="font-bold text-blue-800 dark:text-blue-200 text-sm">Limit: 2 Methods Max</p>
+                            <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                                You have configured <span className="font-bold">{currentDetails.length}/2</span> methods.
+                            </p>
+                         </div>
+                         <div className="h-10 w-10 bg-blue-100 dark:bg-blue-800 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-200 font-bold">
+                             {currentDetails.length}
+                         </div>
+                    </div>
+
                     <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4 mb-5 flex items-start">
                         <i className="fa-solid fa-triangle-exclamation text-yellow-600 mt-1 mr-3 flex-shrink-0 text-lg"></i>
                         <div>
@@ -298,10 +383,6 @@ const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({ isOpen, onClose
                             </p>
                         </div>
                     </div>
-
-                    <p className="text-sm text-[var(--gray)] mb-4">
-                        Configure your withdrawal methods below. You can save multiple methods and choose one when withdrawing.
-                    </p>
 
                     {paymentMethods.map(config => renderContent(config))}
                 </div>

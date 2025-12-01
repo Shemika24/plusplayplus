@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom/client';
 import SplashScreen from './components/SplashScreen';
 import HomeScreen from './components/HomeScreen';
 import AuthScreen from './screens/AuthScreen';
@@ -81,7 +82,7 @@ const App: React.FC = () => {
 
     const timer = setTimeout(() => {
       setIsSplashTimeOver(true);
-    }, 2500); // Reduced from 6000ms to 2500ms for better UX
+    }, 4000); // Set to 4000ms as requested
 
     return () => clearTimeout(timer);
   }, []);
