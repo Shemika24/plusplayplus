@@ -1,6 +1,8 @@
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import AdminApp from './AdminApp';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -8,8 +10,20 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+
+// Simple client-side routing check
+const path = window.location.pathname;
+
+if (path.startsWith('/admin')) {
+    root.render(
+        <React.StrictMode>
+            <AdminApp />
+        </React.StrictMode>
+    );
+} else {
+    root.render(
+        <React.StrictMode>
+            <App />
+        </React.StrictMode>
+    );
+}

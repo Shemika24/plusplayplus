@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Screen, Task, UserProfile, TaskHistory } from '../types';
 import { getDailyTaskState, completeTask as completeTaskInService } from '../services/firestoreService';
 import { useTaskAd } from '../hooks/useTaskAd';
@@ -39,8 +39,8 @@ const SkeletonTaskItemCard: React.FC = () => (
 );
 
 const TaskItemCard: React.FC<{ task: ShuffledTask; onStart: (task: ShuffledTask) => void; isActive: boolean; disabled: boolean; }> = ({ task, onStart, isActive, disabled }) => (
-    <div className="bg-[var(--bg-card)] rounded-xl shadow-md flex items-center p-2.5 border border-[var(--border-color)] hover:border-[var(--primary)] transition-colors">
-        <div className={`w-10 h-10 rounded-lg ${task.categoryIconBgColor} flex items-center justify-center mr-3 flex-shrink-0`}>
+    <div className="bg-[var(--bg-card)] rounded-xl shadow-md flex items-center p-3 border border-[var(--border-color)] hover:border-[var(--primary)] transition-colors">
+        <div className={`w-11 h-11 rounded-lg ${task.categoryIconBgColor} flex items-center justify-center mr-3 flex-shrink-0`}>
             <i className={`${task.categoryIcon} ${task.categoryIconColor} text-xl`}></i>
         </div>
         <div className="flex-grow">
@@ -49,13 +49,13 @@ const TaskItemCard: React.FC<{ task: ShuffledTask; onStart: (task: ShuffledTask)
                 <i className="fa-regular fa-clock mr-1"></i>
                 <span>{task.duration}s</span>
                 <span className="mx-1.5 text-[var(--gray)]">|</span>
-                <span className="text-green-500 font-bold">+{task.points} points</span>
+                <span className="text-green-500 font-bold">+{task.points} pts</span>
             </div>
         </div>
         <button
             onClick={() => onStart(task)}
             disabled={disabled}
-            className={`font-bold h-8 w-24 rounded-full shadow-md text-sm ml-2 flex-shrink-0 transition-all duration-300 flex items-center justify-center
+            className={`font-bold h-9 w-24 rounded-full shadow-md text-sm ml-2 flex-shrink-0 transition-all duration-300 flex items-center justify-center
                 ${disabled
                     ? 'bg-[var(--bg-input)] text-[var(--gray)] cursor-wait'
                     : 'bg-gradient-to-r from-amber-600 to-yellow-400 text-white transform hover:scale-105'
@@ -139,8 +139,8 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
     const [successInfo, setSuccessInfo] = useState<{ points: number } | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     
-    // Auto Mode now has 4 states: OFF, PREMIUM, STANDARD, MIXED
-    const [autoMode, setAutoMode] = useState<'OFF' | 'PREMIUM' | 'STANDARD' | 'MIXED'>('OFF');
+    // Auto Mode: OFF | INTERS | POP | MIXED
+    const [autoMode, setAutoMode] = useState<'OFF' | 'INTERS' | 'POP' | 'MIXED'>('OFF');
     
     const fetchAndProcessTasks = useCallback(async () => {
         setIsLoadingState(true);
@@ -162,6 +162,19 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
     useEffect(() => {
         fetchAndProcessTasks();
     }, [fetchAndProcessTasks]);
+
+    // Calculate total remaining time based on tasks in the queue
+    const totalRemainingTimeStr = useMemo(() => {
+        if (!dailyState?.tasks) return "00:00:00";
+        const totalSeconds = dailyState.tasks.reduce((acc, task) => acc + task.duration, 0);
+        
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        
+        const pad = (num: number) => num.toString().padStart(2, '0');
+        return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+    }, [dailyState?.tasks]);
 
     const handleTaskSuccess = useCallback(async ({ taskId, points }: { taskId: number; points: number }) => {
         if (!dailyState) return;
@@ -243,14 +256,16 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
 
     // --- AUTO MODE LOGIC ---
     useEffect(() => {
-        if (autoMode !== 'OFF' && activeTaskId === null && !isAdActive && !errorMessage && dailyState && dailyState.tasks.length > 0) {
+        if (autoMode !== 'OFF' && activeTaskId === null && !isAdActive && !isAdLoading && !errorMessage && dailyState && dailyState.tasks.length > 0) {
             
             const autoTimer = setTimeout(() => {
                 if (dailyState.tasks.length > 0) {
                     const nextTask = dailyState.tasks.find(t => {
-                        const isPremium = t.categoryIcon.includes('fa-rectangle-ad') || t.title.includes('Inters');
-                        if (autoMode === 'PREMIUM') return isPremium;
-                        if (autoMode === 'STANDARD') return !isPremium;
+                        const isInters = t.categoryIcon.includes('fa-rectangle-ad');
+                        const isPop = t.categoryIcon.includes('fa-clone');
+                        
+                        if (autoMode === 'INTERS') return isInters;
+                        if (autoMode === 'POP') return isPop;
                         if (autoMode === 'MIXED') return true;
                         return false;
                     });
@@ -258,12 +273,13 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
                     if (nextTask) {
                         handleStartTask(nextTask);
                     } else {
+                        // If no more tasks of this type, turn off auto
                         setAutoMode('OFF');
                     }
                 } else {
                     setAutoMode('OFF');
                 }
-            }, 500); 
+            }, 1000); // 1 second delay between tasks for smooth transition
 
             return () => clearTimeout(autoTimer);
         }
@@ -272,7 +288,18 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
             setAutoMode('OFF');
         }
 
-    }, [autoMode, activeTaskId, isAdActive, errorMessage, dailyState, handleStartTask]);
+    }, [autoMode, activeTaskId, isAdActive, isAdLoading, errorMessage, dailyState, handleStartTask]);
+
+    const isTaskRunning = activeTaskId !== null || isAdActive || isAdLoading;
+
+    // Helper to format countdown time like 00:00:15
+    const formatCountdown = (seconds: number) => {
+        const pad = (num: number) => num.toString().padStart(2, '0');
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        return `${pad(h)}:${pad(m)}:${pad(s)}`;
+    };
 
     const renderContent = () => {
         if (isLoadingState) {
@@ -334,81 +361,129 @@ const TasksScreen: React.FC<TasksScreenProps> = ({ onNavigate, onEarnPoints, use
         );
     };
 
+    // Overlay for Task Execution (Countdown/Cancel)
+    const renderAdOverlay = () => {
+        if (!isAdActive && !isAdLoading) return null;
+
+        return (
+            <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-6 animate-fadeIn select-none">
+                <div className="w-24 h-24 mb-6 relative flex items-center justify-center">
+                    <svg className="animate-spin h-full w-full text-[var(--primary)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    {isAdActive && <span className="absolute font-bold text-3xl text-white">{timeLeft}</span>}
+                </div>
+                
+                <p className="text-white font-bold text-xl animate-pulse mb-2">
+                    {isAdLoading ? "Loading Task..." : "Completing Task..."}
+                </p>
+                <p className="text-white/60 text-sm text-center max-w-xs">
+                    Please wait while we verify your action. Do not close this window.
+                </p>
+                
+                <button 
+                    onClick={() => cancelAd(false)}
+                    className="mt-12 px-8 py-3 rounded-full bg-white/10 text-white font-semibold hover:bg-white/20 transition-all border border-white/20"
+                >
+                    Cancel
+                </button>
+            </div>
+        );
+    };
+
     return (
         <div className="flex flex-col h-full bg-[var(--gray-light)] relative">
-            {/* Top Card: Compact 3x2 Grid */}
-             <div className="p-3 bg-[var(--bg-card)] border-b border-[var(--border-color)] shadow-sm sticky top-0 z-20">
-                <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+            {renderAdOverlay()}
+            
+            {/* Top Card: Redesigned Minimalist Layout */}
+             <div className="p-4 bg-[var(--bg-card)] border-b border-[var(--border-color)] shadow-sm sticky top-0 z-20">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                     
-                    {/* Row 1: Title & History */}
-                    <div className="flex items-center text-[var(--dark)] font-bold text-sm">
-                        <i className="fa-solid fa-list-check text-[var(--primary)] mr-2"></i>
-                        Tasks
+                    {/* Row 1: Title & History (Icon Only) */}
+                    <div className="flex items-center text-[var(--dark)] font-bold text-lg">
+                        <i className="fa-solid fa-list-check text-[var(--primary)] mr-2.5 text-xl"></i>
+                        <span>Tasks</span>
                     </div>
-                    <div className="flex justify-end">
+                    <div className="flex justify-end items-center">
                         <button 
                             onClick={() => onNavigate('TaskHistory')}
-                            className="text-[var(--gray)] hover:text-[var(--primary)] transition-colors text-xs"
+                            className="text-[var(--gray)] hover:text-[var(--primary)] transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-input)]"
                         >
-                            <i className="fa-solid fa-clock-rotate-left text-base"></i>
+                            <i className="fa-solid fa-clock-rotate-left text-lg"></i>
                         </button>
                     </div>
 
-                    {/* Row 2: Available & Auto Btns */}
-                    <div className="flex items-center text-[11px] text-[var(--gray)] font-medium">
-                        Available: <span className="ml-1 text-[var(--dark)] font-bold">{dailyState?.tasks.length || 0}</span>
+                    {/* Row 2: Available & Tiny Auto Btns */}
+                    <div className="flex items-center text-sm text-[var(--gray)] font-medium">
+                        <i className="fa-solid fa-layer-group text-[var(--primary)] mr-2"></i>
+                        Available: <span className="ml-2 text-[var(--dark)] font-bold text-base">{dailyState?.tasks.length || 0}</span>
                     </div>
-                    <div className="flex justify-end items-center gap-1">
-                         {/* Auto Buttons - Tiny, Low Opacity by default */}
+                    <div className="flex justify-end items-center gap-3">
+                         {/* Tiny Auto Buttons - Low Opacity by default */}
+                         
+                         {/* Button 1: Inters Only (Auto) */}
                          <button 
-                            onClick={() => setAutoMode(autoMode === 'STANDARD' ? 'OFF' : 'STANDARD')}
-                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase transition-all border border-blue-200
-                                ${autoMode === 'STANDARD' 
-                                    ? 'bg-blue-100 text-blue-600 opacity-100' 
-                                    : 'bg-gray-50 text-gray-400 opacity-20 hover:opacity-100'}`}
+                            onClick={() => setAutoMode(autoMode === 'INTERS' ? 'OFF' : 'INTERS')}
+                            className={`transition-all transform active:scale-95
+                                ${autoMode === 'INTERS' 
+                                    ? 'text-red-500 opacity-100 scale-125' 
+                                    : 'text-[var(--gray)] opacity-30 hover:opacity-100 hover:scale-110'}`}
                          >
-                            Std
+                            <i className="fa-solid fa-rectangle-ad text-xs"></i>
                          </button>
+                         
+                         {/* Button 2: Pop Only (Auto) */}
                          <button 
-                            onClick={() => setAutoMode(autoMode === 'PREMIUM' ? 'OFF' : 'PREMIUM')}
-                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase transition-all border border-red-200
-                                ${autoMode === 'PREMIUM' 
-                                    ? 'bg-red-100 text-red-600 opacity-100' 
-                                    : 'bg-gray-50 text-gray-400 opacity-20 hover:opacity-100'}`}
+                            onClick={() => setAutoMode(autoMode === 'POP' ? 'OFF' : 'POP')}
+                            className={`transition-all transform active:scale-95
+                                ${autoMode === 'POP' 
+                                    ? 'text-blue-500 opacity-100 scale-125' 
+                                    : 'text-[var(--gray)] opacity-30 hover:opacity-100 hover:scale-110'}`}
                          >
-                            Pre
+                            <i className="fa-solid fa-clone text-xs"></i>
                          </button>
+
+                         {/* Button 3: Mixed (Auto) */}
                          <button 
                             onClick={() => setAutoMode(autoMode === 'MIXED' ? 'OFF' : 'MIXED')}
-                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase transition-all border border-purple-200
+                            className={`transition-all transform active:scale-95
                                 ${autoMode === 'MIXED' 
-                                    ? 'bg-purple-100 text-purple-600 opacity-100' 
-                                    : 'bg-gray-50 text-gray-400 opacity-20 hover:opacity-100'}`}
+                                    ? 'text-purple-500 opacity-100 scale-125' 
+                                    : 'text-[var(--gray)] opacity-30 hover:opacity-100 hover:scale-110'}`}
                          >
-                            Mix
+                            <i className="fa-solid fa-layer-group text-xs"></i>
                          </button>
                     </div>
 
                     {/* Row 3: Timer & Done */}
-                    <div className="flex items-center text-[11px] text-[var(--gray)] font-medium h-4">
-                        {(isAdActive || isLoadingState && activeTaskId) ? (
-                             <>
-                                <i className="fa-solid fa-stopwatch mr-1 animate-pulse text-[var(--primary)]"></i>
-                                <span className="font-mono text-[var(--primary)]">{timeLeft}s</span>
-                             </>
+                    <div className="flex items-center h-8 text-[var(--gray)]">
+                        {isTaskRunning ? (
+                             <div className="flex items-center animate-pulse">
+                                <i className="fa-solid fa-hourglass-half mr-2 text-[var(--primary)]"></i>
+                                <span className="font-mono text-[var(--primary)] font-bold text-base">
+                                    {timeLeft > 0 ? formatCountdown(timeLeft) : "00:00:00"}
+                                </span>
+                             </div>
                         ) : (
-                             <span className="text-[9px] opacity-40">Idle</span>
+                             <div className="flex items-center">
+                                <i className="fa-solid fa-hourglass-half mr-2 text-[var(--gray)]"></i>
+                                <span className="font-mono font-semibold text-base">
+                                    {totalRemainingTimeStr}
+                                </span>
+                             </div>
                         )}
                     </div>
-                    <div className="flex justify-end items-center text-[11px] text-[var(--gray)] font-medium">
-                        Done: <span className="ml-1 text-[var(--success)] font-bold">{dailyState?.completedToday || 0}</span>
+                    <div className="flex justify-end items-center text-sm text-[var(--gray)] font-medium">
+                        Done: <span className="ml-2 text-[var(--success)] font-bold text-base">{dailyState?.completedToday || 0}</span>
                     </div>
                 </div>
              </div>
 
-             <div className="flex-1 overflow-y-auto p-3">
+             <div className="flex-1 overflow-y-auto p-4">
                  {errorMessage && (
-                    <div className="mb-3 bg-red-100 border border-red-200 text-red-600 text-xs rounded-lg p-2 text-center animate-bounce">
+                    <div className="mb-4 bg-red-100 border border-red-200 text-red-700 text-sm font-semibold rounded-xl p-3 text-center animate-bounce shadow-sm">
+                        <i className="fa-solid fa-circle-exclamation mr-2"></i>
                         {errorMessage}
                     </div>
                  )}
