@@ -123,7 +123,7 @@ export interface UserProfile {
 
     // Referral Info
     referralLink: string;
-    referredBy?: string; // ID of the user who referred this user
+    referredBy?: string | null; // ID of the user who referred this user (Allow null)
     referrals: {
         count: number;
         activeCount: number;

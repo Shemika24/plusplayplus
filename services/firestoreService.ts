@@ -193,7 +193,7 @@ export const createUserProfileDocument = async (
         // 2. Referrer gets $0.10 (10,000 points) + Referral Count Increment
         
         let initialPoints = 0;
-        let validReferrerId: string | undefined = undefined;
+        let validReferrerId: string | null = null; // Changed from undefined to null for Firestore compatibility
         const REFERRAL_BONUS_POINTS = 10000; // $0.10 for referrer
         const NEW_USER_BONUS_POINTS = 50000; // $0.50 for new user
 
